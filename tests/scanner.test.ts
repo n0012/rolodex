@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAggregateHeading, findEntitiesInHeading, extractEntityChunk } from '../src/scanner';
+import { isAggregateHeading, findEntitiesInHeading, extractEntityChunk, shouldScan } from '../src/scanner';
 
 describe('isAggregateHeading', () => {
   it('detects generic workflow aggregate headings', () => {
@@ -75,5 +75,27 @@ describe('extractEntityChunk', () => {
     expect(takedaChunk).toContain('Detailed pricing model attached.');
     expect(takedaChunk).not.toContain('Bicycle Therapeutics');
     expect(takedaChunk).not.toContain('Suki TPUv6e Stall');
+  });
+});
+
+describe('shouldScan', () => {
+  const defaultSettings: any = {
+    includeFolders: [],
+    excludeFolders: ['Attachments', 'Template', 'Templates', '.trash', '~Archive', 'Reporting'],
+  };
+
+  it('scans files in ~Daily and its subfolders', () => {
+    expect(shouldScan('~Daily/2026-09-01.md', defaultSettings, '.obsidian')).toBe(true);
+    expect(shouldScan('~Daily/2026/2026-08/2026-08-03.md', defaultSettings, '.obsidian')).toBe(true);
+  });
+
+  it('strictly rejects files in Reporting/', () => {
+    expect(shouldScan('Reporting/2x2/customer/Takeda/report.md', defaultSettings, '.obsidian')).toBe(false);
+    expect(shouldScan('Reporting/Dashboards/Task Hub.md', defaultSettings, '.obsidian')).toBe(false);
+  });
+
+  it('rejects files outside ~Daily when includeFolders is default empty', () => {
+    expect(shouldScan('Wiki/Skills.md', defaultSettings, '.obsidian')).toBe(false);
+    expect(shouldScan('Attachments/image.png', defaultSettings, '.obsidian')).toBe(false);
   });
 });

@@ -128,11 +128,13 @@ export function extractEntityChunk(fullText: string, targetKey: string, targetNa
   return result || fullText;
 }
 
-function shouldScan(path: string, s: RolodexSettings, configDir: string): boolean {
+export function shouldScan(path: string, s: RolodexSettings, configDir: string): boolean {
   if (path.startsWith(`${configDir}/`)) return false;
   if (inFolder(path, 'Reporting')) return false;
   if (s.excludeFolders.some(f => inFolder(path, f))) return false;
   if (s.includeFolders.length && !s.includeFolders.some(f => inFolder(path, f))) return false;
+  // If no explicit includeFolders configured, restrict scanning strictly to ~Daily/
+  if (!s.includeFolders.length && !inFolder(path, '~Daily')) return false;
   return true;
 }
 
@@ -424,18 +426,10 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
   for (const e of entities.values()) {
     e.activities.sort((a, b) => b.date.localeCompare(a.date));
     // True Last Touch: anchor to the most recent real interaction/activity
-    // or completed task, so real deliverables count.
-    const latestActivity = e.activities[0]?.date || '';
-    const completedTasks = e.tasks.filter(t => t.status === 'done');
-    const latestCompletedTask = completedTasks
-      .map(t => t.done || t.noteDate || '')
-      .filter(d => Boolean(d))
-      .sort()
-      .pop() || '';
-
-    const latestTouch = [latestActivity, latestCompletedTask].filter(Boolean).sort().pop();
-    if (latestTouch) {
-      e.lastSeen = latestTouch;
+    // so automated proposals, inbox task checkoffs, or admin tasks
+    // do not falsely make a quiet account look active.
+    if (e.activities.length > 0) {
+      e.lastSeen = e.activities[0].date;
     }
   }
 
