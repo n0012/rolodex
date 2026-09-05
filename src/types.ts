@@ -45,7 +45,11 @@ export const DEFAULT_SETTINGS: RolodexSettings = {
   geminiModel: 'gemini-flash-latest',
   defaultPrompt: DEFAULT_PROMPT,
   typeAliases: ['Projects=Project', 'Customers=Customer'],
-  ignoredTypes: ['chat', 'inbox', 'all', 'slide'],
+  ignoredTypes: [
+    'chat', 'inbox', 'all', 'slide', 'meeting', 'learning',
+    'territory', 'personal', 'architecture', 'admin', 'process',
+    'agreement', 'internal',
+  ],
 };
 
 /** Tasks-plugin emoji metadata, parsed off a task line. */

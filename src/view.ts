@@ -36,6 +36,7 @@ export class RolodexView extends ItemView {
   private types: string[] = [];
   private sort: SortKey = 'attention';
   private query = '';
+  private openOnly = true;
   private selected: string | null = null;
   private summary: string | null = null;
   private actionLoading = false;
@@ -389,6 +390,17 @@ export class RolodexView extends ItemView {
       this.renderTableOnly(root);
     });
 
+    const openToggle = tools.createEl('button', {
+      text: this.openOnly ? '⚡ Open work only' : 'All entities',
+      cls: this.openOnly ? 'rolodex-chip is-on is-cta' : 'rolodex-chip',
+    });
+    openToggle.addEventListener('click', () => {
+      this.openOnly = !this.openOnly;
+      openToggle.setText(this.openOnly ? '⚡ Open work only' : 'All entities');
+      openToggle.className = this.openOnly ? 'rolodex-chip is-on is-cta' : 'rolodex-chip';
+      this.renderTableOnly(root);
+    });
+
     root.createDiv({ cls: 'rolodex-table-host' });
     this.renderTableOnly(root);
   }
@@ -400,6 +412,10 @@ export class RolodexView extends ItemView {
 
     const idx = this.plugin.index!;
     let rows = sortRows(buildRows(idx, this.win, this.types), this.sort);
+    if (this.openOnly) {
+      rows = rows.filter((r) => r.open > 0);
+    }
+
     const q = this.query.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -408,7 +424,7 @@ export class RolodexView extends ItemView {
     }
 
     if (!rows.length) {
-      host.createDiv({ text: 'Nothing in this window.', cls: 'rolodex-muted' });
+      host.createDiv({ text: this.openOnly ? 'No entities with open tasks in this window.' : 'Nothing in this window.', cls: 'rolodex-muted' });
       return;
     }
 
@@ -434,7 +450,6 @@ export class RolodexView extends ItemView {
       'Last Touch',
       'Open',
       'Late',
-      'Focus & Partners',
       'Quick Action',
     ]) {
       head.createEl('th', { text: h });
@@ -488,21 +503,6 @@ export class RolodexView extends ItemView {
       cls: r.overdue ? 'rolodex-num rolodex-overdue' : 'rolodex-num rolodex-muted',
     });
 
-    // Focus & Partners (Related)
-    const rel = tr.createEl('td', { cls: 'rolodex-rel' });
-    for (const key of r.related.slice(0, 4)) {
-      const b = rel.createEl('button', {
-        text: this.nameOf(key),
-        cls: 'rolodex-chip is-mini',
-      });
-      b.setAttr('title', key);
-      b.addEventListener('click', () => {
-        this.selected = key;
-        this.summary = null;
-        this.render();
-      });
-    }
-
     // Quick Action (Inline Ask AI input + Execute + Brief)
     const actCell = tr.createEl('td', { cls: 'rolodex-act-cell' });
     const actWrap = actCell.createDiv({ cls: 'rolodex-row-action-wrap' });
@@ -548,7 +548,7 @@ export class RolodexView extends ItemView {
       // Insert proposal row right after this tr
       proposalTr = tbody.createEl('tr', { cls: 'rolodex-row-proposal-tr' });
       tr.insertAdjacentElement('afterend', proposalTr);
-      const hostTd = proposalTr.createEl('td', { attr: { colspan: '7' } });
+      const hostTd = proposalTr.createEl('td', { attr: { colspan: '6' } });
 
       hostTd.createDiv({
         text: `⏳ Analyzing "${val}" for ${r.name}…`,
