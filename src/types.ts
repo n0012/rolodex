@@ -258,7 +258,7 @@ export const DEFAULT_PROMPT = PROMPT_DEFINITIONS.brief.defaultText;
 export const DEFAULT_SETTINGS: RolodexSettings = {
   entityTypes: [],
   includeFolders: [],
-  excludeFolders: ['Attachments', 'Template', 'Templates', '.trash', '~Archive'],
+  excludeFolders: ['Attachments', 'Template', 'Templates', '.trash', '~Archive', 'Reporting'],
   entityNoteFolders: ['Customers', 'Projects', 'Partners', 'Organization'],
   defaultDays: 30,
   geminiApiKey: '',

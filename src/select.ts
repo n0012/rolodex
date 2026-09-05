@@ -8,7 +8,7 @@ export interface Window {
   to: string;
 }
 
-const inWindow = (date: string, w: Window) => !date || (date >= w.from && date <= w.to);
+export const inWindow = (date: string, w: Window) => !date || (date >= w.from && date <= w.to);
 
 /**
  * Open work is deliberately NOT date-filtered. A commitment made four months

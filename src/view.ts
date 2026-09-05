@@ -22,7 +22,7 @@ import {
 } from './actions';
 import type { TaskUpdateProposal } from './actions';
 import { daysAgoIso, todayIso } from './parse';
-import { buildRows, heat, isOverdue, openTasks, sortRows, sortTasks } from './select';
+import { buildRows, heat, inWindow, isOverdue, openTasks, sortRows, sortTasks } from './select';
 import type { SortKey, Window } from './select';
 import type { EntityRecord, EntityTask, PortfolioRow, ReportType } from './types';
 import type RolodexPlugin from './main';
@@ -1195,11 +1195,23 @@ export class RolodexView extends ItemView {
   private renderActivity(root: HTMLElement, e: EntityRecord) {
     if (!e.activities.length) return;
 
+    // Filter to active window if possible, fallback to all activities
+    const inWin = e.activities.filter((a) => inWindow(a.date, this.win));
+    const toShow = inWin.length > 0 ? inWin : e.activities;
+
     const sec = root.createDiv({ cls: 'rolodex-section' });
     const headerRow = sec.createDiv({ cls: 'rolodex-section-header-row' });
-    headerRow.createEl('h4', { text: `Recent Activity (${e.activities.length})` });
+    const countText = inWin.length > 0 ? `${inWin.length}` : `${e.activities.length} past`;
+    headerRow.createEl('h4', { text: `Recent Activity (${countText})` });
 
-    for (const a of e.activities.slice(0, 15)) {
+    if (inWin.length === 0 && e.activities.length > 0) {
+      headerRow.createSpan({
+        text: 'No notes in selected window — showing earlier activity',
+        cls: 'rolodex-muted',
+      });
+    }
+
+    for (const a of toShow.slice(0, 15)) {
       const card = sec.createDiv({ cls: 'rolodex-activity-card' });
 
       // Meta header bar

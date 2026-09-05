@@ -23,8 +23,40 @@ function inFolder(path: string, folder: string): boolean {
   return path === f || path.startsWith(`${f}/`);
 }
 
+const AGGREGATE_HEADING_WORDS = new Set([
+  'inbox',
+  'today',
+  'proposed',
+  'proposed review',
+  'start here',
+  'aging',
+  'tasks',
+  'open tasks',
+  'daily check list',
+  'daily check list start of day',
+  'run log',
+  'scratch',
+  'daily log',
+  'habits',
+  'routines',
+  'review',
+  'brief',
+  'standup',
+  'priorities',
+  'backlog',
+]);
+
+export function isAggregateHeading(heading: string): boolean {
+  if (!heading) return false;
+  const clean = heading.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+  if (AGGREGATE_HEADING_WORDS.has(clean)) return true;
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return true;
+  return false;
+}
+
 function shouldScan(path: string, s: RolodexSettings, configDir: string): boolean {
   if (path.startsWith(`${configDir}/`)) return false;
+  if (inFolder(path, 'Reporting')) return false;
   if (s.excludeFolders.some(f => inFolder(path, f))) return false;
   if (s.includeFolders.length && !s.includeFolders.some(f => inFolder(path, f))) return false;
   return true;
@@ -108,28 +140,36 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
 
     const flush = (endLine: number) => {
       const keys = [...sectionTags.keys()];
+      const isAggregate = isAggregateHeading(heading);
+
       if (keys.length) {
-        const text = lines.slice(sectionStart, endLine).join('\n').trim();
-        for (const key of keys) {
-          const t = sectionTags.get(key)!;
-          const e = get(key, t.type, t.name);
-          for (const sub of t.subs) e.subs.add(sub);
-          if (text) {
+        const rawLines = lines.slice(sectionStart, endLine);
+        const text = rawLines.join('\n').trim();
+
+        // Check if the section body only contains task lines / blockquotes
+        const bodyLines = rawLines.slice(1)
+          .map(l => l.trim())
+          .filter(l => l.length > 0 && !l.startsWith('>'));
+        const isPureTaskList = bodyLines.length > 0 && bodyLines.every(l => /^[-*+]\s+\[[ x/X-]\]/.test(l));
+
+        if (text && !isAggregate && !isPureTaskList) {
+          for (const key of keys) {
+            const t = sectionTags.get(key)!;
+            const e = get(key, t.type, t.name);
+            for (const sub of t.subs) e.subs.add(sub);
             e.activities.push({
               date, heading, text, path: file.path, file: file.basename,
               alsoHere: keys.filter(k => k !== key),
             });
-          }
-          // Relate only across different types (never Customer <-> Customer)
-          for (const other of keys) {
-            if (other === key) continue;
-            const otherTag = sectionTags.get(other);
-            if (otherTag && otherTag.type.toLowerCase() === t.type.toLowerCase()) continue;
-            e.related.set(other, (e.related.get(other) ?? 0) + 1);
-          }
+            // Relate only across different types (never Customer <-> Customer)
+            for (const other of keys) {
+              if (other === key) continue;
+              const otherTag = sectionTags.get(other);
+              if (otherTag && otherTag.type.toLowerCase() === t.type.toLowerCase()) continue;
+              e.related.set(other, (e.related.get(other) ?? 0) + 1);
+            }
 
-          // Extract [[wikilinks]] in the section (stakeholders, partners, projects)
-          if (text) {
+            // Extract [[wikilinks]] in the section (stakeholders, partners, projects)
             const WIKILINK_RE = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
             let wMatch: RegExpExecArray | null;
             while ((wMatch = WIKILINK_RE.exec(text)) !== null) {
