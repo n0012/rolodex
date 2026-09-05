@@ -591,6 +591,16 @@ export class RolodexView extends ItemView {
         return;
       }
 
+      // If user typed "risk" or "risk 2x2", trigger risk matrix directly
+      if (/^(?:risk|risk 2x2|risk matrix)$/i.test(val)) {
+        this.selected = r.key;
+        this.summary = null;
+        this.render();
+        const entity = this.plugin.index?.entities.get(r.key);
+        if (entity) this.triggerEntityRiskMatrix(entity);
+        return;
+      }
+
       // Insert proposal row right after this tr
       proposalTr = tbody.createEl('tr', { cls: 'rolodex-row-proposal-tr' });
       tr.insertAdjacentElement('afterend', proposalTr);
@@ -769,6 +779,11 @@ export class RolodexView extends ItemView {
       .setButtonText(reportBtnText)
       .onClick(() => this.triggerEntityTwoByTwo(e));
 
+    new ButtonComponent(row)
+      .setButtonText('⚠️ Risk 2x2')
+      .setTooltip('Generate Probability vs Impact Risk & Opportunity 2x2 matrix')
+      .onClick(() => this.triggerEntityRiskMatrix(e));
+
     const host = root.createDiv({ cls: 'rolodex-summary' });
     if (this.summary) {
       this.renderExecutiveBrief(
@@ -864,6 +879,57 @@ export class RolodexView extends ItemView {
       this.entityReportTitle = isProject ? '📊 Project 2x2' : '📊 Customer 2x2';
       this.renderExecutiveBrief(host, content, e, savedPath, this.entityReportTitle);
       new Notice(`2x2 saved to ${savedPath}`);
+    } catch (err: any) {
+      host.empty();
+      host.createDiv({
+        text: `Error: ${err.message || String(err)}`,
+        cls: 'rolodex-error',
+      });
+    }
+  }
+
+  private async triggerEntityRiskMatrix(e: EntityRecord) {
+    if (!this.plugin.settings.geminiApiKey) {
+      new Notice('Add a Gemini API key in Rolodex settings first');
+      return;
+    }
+
+    const host = this.body().querySelector('.rolodex-summary') as HTMLElement | null;
+    if (!host) return;
+    host.empty();
+    host.createDiv({ text: `⚠️ Analyzing Risk & Opportunity 2x2 for ${e.name}…`, cls: 'rolodex-muted' });
+
+    const isProject = e.type.toLowerCase() === 'project';
+    const scope: 'customer' | 'project' = isProject ? 'project' : 'customer';
+
+    try {
+      const prompt = await loadPrompt(
+        this.app,
+        'risk_2x2',
+        { EntityName: e.name },
+        this.plugin.manifest.id,
+      );
+      const context = buildContext(e, this.win, this.plugin.index!.entities);
+      const content = await summarize(
+        this.plugin.settings.geminiApiKey,
+        this.plugin.settings.geminiModel,
+        prompt,
+        context,
+      );
+
+      // Save to Reporting/2x2/<scope>/
+      const savedPath = await saveTwoByTwoReport(
+        this.app,
+        scope,
+        `${e.name}_Risk`,
+        content,
+      );
+
+      this.summary = content;
+      this.entityReportPath = savedPath;
+      this.entityReportTitle = `⚠️ Risk & Opportunity 2x2`;
+      this.renderExecutiveBrief(host, content, e, savedPath, this.entityReportTitle);
+      new Notice(`Risk 2x2 saved to ${savedPath}`);
     } catch (err: any) {
       host.empty();
       host.createDiv({

@@ -23,7 +23,7 @@ export interface RolodexSettings {
   ignoredTypes: string[];
 }
 
-export type ReportType = 'brief' | 'customer_2x2' | 'project_2x2' | 'weekly_2x2' | 'monthly_2x2';
+export type ReportType = 'brief' | 'customer_2x2' | 'project_2x2' | 'weekly_2x2' | 'monthly_2x2' | 'risk_2x2';
 
 export interface PromptDefinition {
   id: ReportType;
@@ -55,6 +55,11 @@ Use only the notes provided. Where you infer rather than read, say so.`,
     label: 'Customer 2x2 Report',
     defaultText: `You are an executive business analyst and Google Cloud Customer Engineer lead. Create a concise executive 2x2 matrix and status report for the specified Customer based on the provided notes and activities.
 
+**Methodology & Instructions:**
+1. Extract key factors related to both **Opportunities** (commercial momentum, architectural wins, expanded consumption) and **Risks** (blockers, environment access issues, stakeholder friction, procurement delays).
+2. Assess both **Impact on Account Success** (High vs Low) and **Urgency/Probability**.
+3. Format as a clean 2x2 matrix supported by an executive narrative, key metrics, strategic insights, and Grad Expectations alignment.
+
 Output format (use clean GitHub-flavored markdown):
 
 # 2x2 Report: {EntityName} ({StartDate} to {EndDate})
@@ -62,11 +67,15 @@ Output format (use clean GitHub-flavored markdown):
 ### Executive Summary
 [2-3 punchy sentences summarizing commercial & technical momentum, primary blocker, and key strategic lever.]
 
+---
+
 | **Key Accomplishments & Customer Progress** | **Next Steps & Upcoming Priorities** |
 | :--- | :--- |
 | <ul><li>...</li></ul> | <ul><li>...</li></ul> |
 | **Challenges & Blockers** | **Learning & Development** |
 | <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+
+---
 
 ### Key Metrics
 * **Interactions**: [Meeting count / key stakeholder engagements]
@@ -79,13 +88,20 @@ Output format (use clean GitHub-flavored markdown):
 ### Grad Expectations Alignment
 * **Customer Impact**: [Concrete value delivered or unblocked revenue]
 * **Technical Excellence**: [Architecture, POC, or technical guidance delivered]
-* **Leadership & Collaboration**: [Cross-functional orchestration across AE, PSO, product, partners]`,
+* **Leadership & Collaboration**: [Cross-functional orchestration across AE, PSO, product, partners]
+* **Strategic Thinking**: [Business alignment, customer psychology, long-term roadmap]
+* **Innovation & Problem Solving**: [Novel architectures, creative workarounds, reusable field patterns]`,
   },
   project_2x2: {
     id: 'project_2x2',
     filename: 'project-2x2.md',
     label: 'Project 2x2 Report',
     defaultText: `You are a Principal Solutions Architect. Create a concise 2x2 technical milestone report for the specified Project based on the provided notes and activities.
+
+**Methodology & Instructions:**
+1. Analyze project milestones, architecture prototypes, design specs, code commits, and dependencies.
+2. Evaluate critical roadblocks (IP constraints, environment bottlenecks, technical debt) and technical learnings.
+3. Align deliverables with enterprise adoption, reusable assets, and field enablement.
 
 Output format (use clean GitHub-flavored markdown):
 
@@ -94,23 +110,38 @@ Output format (use clean GitHub-flavored markdown):
 ### Executive Summary
 [2-3 sentences summarizing technical status, architecture progress, and delivery runway.]
 
+---
+
 | **Architecture Progress & Milestones** | **Next Sprints & Technical Priorities** |
 | :--- | :--- |
 | <ul><li>...</li></ul> | <ul><li>...</li></ul> |
 | **Technical Roadblocks & Dependencies** | **Architecture Learnings & Tooling** |
 | <ul><li>...</li></ul> | <ul><li>...</li></ul> |
 
+---
+
 ### Key Deliverables & Artifacts
 * [PRDs, repos, demo prototypes, design specs completed or in progress]
 
 ### Strategic Fit & Ecosystem Impact
-* [How this project impacts GCP adoption, reusable assets, or field enablement]`,
+* [How this project impacts GCP adoption, reusable assets, or field enablement]
+
+### Grad Expectations Alignment
+* **Customer Impact**: [Scalable product home, customer transformation, velocity unlocks]
+* **Technical Excellence**: [Pioneering architectures, performance benchmarks, technical rigor]
+* **Leadership & Collaboration**: [Cross-team orchestration across Engineering, PSO, Product, CE]
+* **Strategic Thinking**: [Workflow-first design, incubation model, market timing]
+* **Innovation & Problem Solving**: [Creative solutions to hard constraints, reusable patterns]`,
   },
   weekly_2x2: {
     id: 'weekly_2x2',
     filename: 'weekly-2x2.md',
     label: 'Weekly 2x2 Report',
     defaultText: `You are a Lead Customer Engineer preparing your weekly executive 2x2 status review across your entire book of accounts.
+
+**Methodology & Instructions:**
+1. Synthesize cross-account customer touchpoints, workload milestones, partner collaborations, and active blockers.
+2. Highlight high-probability wins, critical deal movements, and customer-side dependencies (e.g. environment access, security reviews).
 
 Output format (use clean GitHub-flavored markdown):
 
@@ -119,24 +150,42 @@ Output format (use clean GitHub-flavored markdown):
 ### Weekly Executive Summary
 [High-level synthesis of major weekly wins, critical deal movements, and primary blockers across the territory.]
 
+---
+
 | **Key Accomplishments Across Accounts** | **Next Week's Priorities & P0s** |
 | :--- | :--- |
 | <ul><li>...</li></ul> | <ul><li>...</li></ul> |
 | **Customer & Partner Blockers** | **Technical Learnings & Reusable Assets** |
 | <ul><li>...</li></ul> | <ul><li>...</li></ul> |
 
+---
+
 ### Territory Velocity & Highlights
 * **Active Customer Touches**: [Key meetings and accounts engaged]
 * **Hygiene & Consumption**: [Workload movements, support case resolutions, quota/deal approvals]
 
 ### Key Account Spotlight
-* [Brief 1-2 sentence updates on top active accounts]`,
+* [Brief 1-2 sentence updates on top active accounts]
+
+### Strategic Insights
+* [Ecosystem trends, partner synergies, common enterprise blockers observed]
+
+### Grad Expectations Alignment
+* **Customer Impact**: [Tangible customer value driven across territory]
+* **Technical Excellence**: [Advanced technical patterns or solutions architected]
+* **Leadership & Collaboration**: [Internal expert networks and cross-functional teams leveraged]
+* **Strategic Thinking**: [Territory pipeline acceleration and proactive opportunity framing]
+* **Innovation & Problem Solving**: [Overcoming blockers with creative technical or process paths]`,
   },
   monthly_2x2: {
     id: 'monthly_2x2',
     filename: 'monthly-2x2.md',
     label: 'Monthly 2x2 Report',
     defaultText: `You are an executive Cloud Customer Engineer lead compiling the monthly portfolio 2x2 review for leadership.
+
+**Methodology & Instructions:**
+1. Provide a monthly synthesis across accounts, consumption trends, architectural milestones, and operational health.
+2. Group accomplishments and strategic focus by customer/project, highlighting major stage migrations and quota impact.
 
 Output format (use clean GitHub-flavored markdown):
 
@@ -145,11 +194,15 @@ Output format (use clean GitHub-flavored markdown):
 ### Monthly Executive Summary
 [Strategic narrative on monthly quota attainment, consumption trends, significant architecture milestones, and operational health.]
 
+---
+
 | **Major Monthly Wins & Customer Impact** | **Strategic Focus for Next Month** |
 | :--- | :--- |
 | <ul><li>...</li></ul> | <ul><li>...</li></ul> |
 | **Critical Territory Blockers & Escalations** | **Skill & Technical Advancements** |
 | <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+
+---
 
 ### Monthly Key Metrics
 * **Total Significant Interactions**: [Summary of customer and partner sessions]
@@ -159,7 +212,44 @@ Output format (use clean GitHub-flavored markdown):
 ### Grad Expectations & Leadership Summary
 * **Customer Impact**: [Major customer transformations and business value]
 * **Technical Excellence**: [Solutions architecture, whitepapers, benchmarks, innovative patterns]
-* **Leadership & Culture**: [Mentorship, cross-team enablement, community contributions]`,
+* **Leadership & Culture**: [Mentorship, cross-team enablement, community contributions]
+* **Strategic Thinking**: [Long-term territory positioning and customer trust building]
+* **Innovation & Problem Solving**: [Scalable assets, field tools, architectural breakthroughs]`,
+  },
+  risk_2x2: {
+    id: 'risk_2x2',
+    filename: 'risk-2x2.md',
+    label: 'Risk & Opportunity 2x2 Matrix',
+    defaultText: `You are an executive business analyst and risk consultant tasked with creating a concise executive summary from provided meeting notes and activity updates. The summary takes the form of a 2x2 matrix, analyzing current status by evaluating potential Opportunities and Risks along Probability and Impact axes.
+
+**Input Analysis Instructions:**
+1. **Identify Key Factors**: Extract key factors related to both **Opportunities** (positive developments, potential benefits, revenue expansion) and **Risks** (challenges, roadblocks, customer hesitation, dependency delays).
+2. **Assess Impact & Probability**:
+   * **Impact on Project/Account Success**: High vs Low
+   * **Probability of Occurrence**: High vs Low
+3. **Populate Matrix**: Place each factor into the corresponding quadrant using clear bullet points.
+
+Output format (use clean GitHub-flavored markdown):
+
+# Risk & Opportunity 2x2: {EntityName} ({StartDate} to {EndDate})
+
+### Executive Summary
+[At-a-glance summary highlighting the most critical opportunities and highest-priority risks requiring immediate mitigation.]
+
+---
+
+| **High Probability / High Impact** *(Immediate Action & Focus)* | **Low Probability / High Impact** *(Develop Contingency Plans)* |
+| :--- | :--- |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+| **High Probability / Low Impact** *(Monitor Efficiently)* | **Low Probability / Low Impact** *(Acknowledge & Deprioritize)* |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+
+---
+
+### Strategic Insights & Priority Mitigations
+* **Immediate Priorities (High/High)**: [Concrete actions to capitalize on wins or neutralize immediate threats]
+* **Contingency Planning (Low/High)**: [Leading indicators, triggers, and fallback architectures]
+* **Dependencies & Ownership**: [Customer-side vs Google-side dependencies and owners]`,
   },
 };
 
