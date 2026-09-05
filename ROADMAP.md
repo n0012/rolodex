@@ -21,6 +21,12 @@ This document outlines the strategic enhancements planned and delivered for the 
   - **Noise Filter & Mode Switch**: Automatic exclusion of internal dashboards (`Task Hub`, `Support Cases`), attachments, and dates; instant `[ 🕸️ Graph | 🏷️ Chips ]` toggle.
 
 #### Future Graph Evolutions (Phase 2)
+- **Customer ↔ Customer Relationship Filter**: Suppress same-type cross-customer links by default in account drill-ins (or require co-occurrence `touches ≥ 4` for verified joint initiatives). Eliminates dashboard/portfolio co-occurrence noise and frees up satellite slots for true collaborators.
+- **Curated Stakeholder Note Promotion (Turn Attendees into Graph Entities)**:
+  - 1-Click "📄 Create Contact Note" action on recurring attendee nodes (>3 touches).
+  - Automatically creates `Contacts/<Name>.md` with YAML frontmatter (`type: Contact`, `company: <Company>`, `email: <Email>`), backlinks to meetings, and an embedded Tasks query.
+  - Converts active enterprise champions into durable nodes in Obsidian's native global graph without cluttering the vault with one-off attendees.
+- **Virtual `Person` Entity Portfolio Mode**: Allow selecting `Person` in the Rolodex portfolio filter to see cross-account collaborators (e.g. David Pichardo, Eric Yu, Jan Felix Meyer) with their touched accounts, meeting cadence, and associated tasks.
 - **Multi-Hop / 2nd-Degree Linkages**: Render connections between orbiting satellites (e.g., showing which partners work with which specific customer champions).
 - **Strength / Recency Filter Slider**: Interactive slider to filter nodes by minimum touch count (e.g. `Touches ≥ 3`) or by recency (e.g. last 30 days vs all-time).
 - **Direct Collaborator Quick-Actions**: Click-to-action menu on a stakeholder node to quickly copy contact email, jump to recent mentions, or file a task assigned to that person.
