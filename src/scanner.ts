@@ -49,11 +49,83 @@ const AGGREGATE_WORDS = [
   'blocker',
 ];
 
-export function isAggregateHeading(heading: string): boolean {
+export function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function isAggregateHeading(heading: string, hasEntity = false): boolean {
   if (!heading) return false;
+  if (hasEntity) return false;
   const clean = heading.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return true;
-  return AGGREGATE_WORDS.some(w => clean.includes(w));
+  return AGGREGATE_WORDS.some(w => {
+    const re = new RegExp(`\\b${escapeRegex(w)}\\b`, 'i');
+    return re.test(clean);
+  });
+}
+
+export function findEntitiesInHeading(heading: string, known: Map<string, Tagged>): Tagged[] {
+  const matches: Tagged[] = [];
+  const cleanHeading = heading.replace(/#\S+/g, ' ');
+  for (const [nameLower, tagged] of known) {
+    if (nameLower.length < 2) continue;
+    const re = new RegExp(`(?:\\[\\[${escapeRegex(nameLower)}\\]\\]|\\b${escapeRegex(nameLower)}\\b)`, 'i');
+    if (re.test(cleanHeading)) {
+      matches.push(tagged);
+    }
+  }
+  return matches;
+}
+
+export function extractEntityChunk(fullText: string, targetKey: string, targetName = ''): string {
+  const lines = fullText.split('\n');
+  const matchingIndices: number[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const tags = parseTags(line);
+    if (tags.some(t => tagKey(t.type, t.name) === targetKey)) {
+      matchingIndices.push(i);
+      continue;
+    }
+    if (targetName && targetName.length >= 2) {
+      const re = new RegExp(`(?:\\[\\[${escapeRegex(targetName)}\\]\\]|\\b${escapeRegex(targetName)}\\b)`, 'i');
+      if (re.test(line)) {
+        matchingIndices.push(i);
+      }
+    }
+  }
+
+  if (!matchingIndices.length) return fullText;
+
+  const selectedLines = new Set<number>();
+  for (const idx of matchingIndices) {
+    selectedLines.add(idx);
+    const line = lines[idx];
+    const isBullet = /^(\s*[-*+]|\s*\d+\.)\s+/.test(line);
+    const baseIndent = isBullet ? line.search(/\S/) : 0;
+
+    for (let j = idx + 1; j < lines.length; j++) {
+      const next = lines[j];
+      if (!next.trim()) {
+        if (j + 1 < lines.length && lines[j + 1].search(/\S/) > baseIndent) {
+          selectedLines.add(j);
+          continue;
+        } else {
+          break;
+        }
+      }
+      const nextIndent = next.search(/\S/);
+      if (nextIndent > baseIndent) {
+        selectedLines.add(j);
+      } else {
+        break;
+      }
+    }
+  }
+
+  const result = lines.filter((_, i) => selectedLines.has(i)).join('\n').trim();
+  return result || fullText;
 }
 
 function shouldScan(path: string, s: RolodexSettings, configDir: string): boolean {
@@ -117,14 +189,40 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
     return e;
   };
 
+  // Pre-pass: read markdown files once and extract tags to build universe of known entities
+  const fileContents = new Map<TFile, string>();
   for (const file of files) {
-    let content: string;
     try {
-      // cachedRead, not read: this is a scan, and we never write what we read.
-      content = await app.vault.cachedRead(file);
+      const content = await app.vault.cachedRead(file);
+      fileContents.set(file, content);
+      for (const raw of parseTags(content)) {
+        resolve(raw);
+      }
     } catch {
       continue;
     }
+  }
+
+  // Dictionary of known entities by lowercase name for heading & wikilink resolution
+  const knownEntitiesByName = new Map<string, Tagged>();
+  for (const [key, votes] of nameVotes) {
+    const dispName = winner(votes, '');
+    const slashIdx = key.indexOf('/');
+    const typeKey = slashIdx > -1 ? key.slice(0, slashIdx) : '';
+    const type = winner(typeVotes.get(typeKey), typeKey);
+    if (dispName && type) {
+      knownEntitiesByName.set(dispName.toLowerCase(), {
+        key,
+        type,
+        name: dispName,
+        subs: [],
+      });
+    }
+  }
+
+  for (const file of files) {
+    const content = fileContents.get(file);
+    if (content === undefined) continue;
 
     const fm = app.metadataCache.getFileCache(file)?.frontmatter as
       | Record<string, unknown> | undefined;
@@ -139,53 +237,14 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
     let sectionStart = 0;
     let sectionTags = new Map<string, Tagged>();
     const pendingTasks: Array<{ task: EntityTask; own: Tagged[] }> = [];
-
-function extractEntityChunk(fullText: string, targetKey: string): string {
-  const lines = fullText.split('\n');
-  const matchingIndices: number[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const tags = parseTags(lines[i]);
-    if (tags.some(t => tagKey(t.type, t.name) === targetKey)) {
-      matchingIndices.push(i);
-    }
-  }
-
-  if (!matchingIndices.length) return fullText;
-
-  const selectedLines = new Set<number>();
-  for (const idx of matchingIndices) {
-    selectedLines.add(idx);
-    const line = lines[idx];
-    const isBullet = /^(\s*[-*+]|\s*\d+\.)\s+/.test(line);
-    const baseIndent = isBullet ? line.search(/\S/) : 0;
-
-    for (let j = idx + 1; j < lines.length; j++) {
-      const next = lines[j];
-      if (!next.trim()) {
-        if (j + 1 < lines.length && lines[j + 1].search(/\S/) > baseIndent) {
-          selectedLines.add(j);
-          continue;
-        } else {
-          break;
-        }
-      }
-      const nextIndent = next.search(/\S/);
-      if (nextIndent > baseIndent) {
-        selectedLines.add(j);
-      } else {
-        break;
-      }
-    }
-  }
-
-  const result = lines.filter((_, i) => selectedLines.has(i)).join('\n').trim();
-  return result || fullText;
-}
+    const fileEntityKeys = new Set<string>();
 
     const flush = (endLine: number) => {
       const keys = [...sectionTags.keys()];
-      const isAggregate = isAggregateHeading(heading);
+      const headingTags = parseTags(heading).map(resolve).filter((x): x is Tagged => x !== null);
+      const headingEnts = findEntitiesInHeading(heading, knownEntitiesByName);
+      const headingHasEntity = headingTags.length > 0 || headingEnts.length > 0;
+      const isAggregate = isAggregateHeading(heading, headingHasEntity);
 
       if (keys.length) {
         const rawLines = lines.slice(sectionStart, endLine);
@@ -204,21 +263,21 @@ function extractEntityChunk(fullText: string, targetKey: string): string {
             const ty = t.type.toLowerCase();
             typeCountsInSec.set(ty, (typeCountsInSec.get(ty) ?? 0) + 1);
           }
-          const headingTags = parseTags(heading).map(resolve).filter((x): x is Tagged => x !== null);
 
           for (const key of keys) {
             const t = sectionTags.get(key)!;
             const e = get(key, t.type, t.name);
             for (const sub of t.subs) e.subs.add(sub);
+            fileEntityKeys.add(key);
 
             // If section contains multiple entities of this type (e.g. 3 Customers in Weekly Snippets),
             // and the heading does not specifically name this entity, isolate only this entity's chunk!
             const hasMultipleOfThisType = (typeCountsInSec.get(t.type.toLowerCase()) ?? 0) > 1;
-            const headingHasEntity = headingTags.some(ht => ht.key === key);
+            const headingHasThisEntity = headingTags.some(ht => ht.key === key) || headingEnts.some(he => he.key === key);
 
             let activityText = text;
-            if (hasMultipleOfThisType && !headingHasEntity) {
-              activityText = extractEntityChunk(text, key);
+            if (hasMultipleOfThisType && !headingHasThisEntity) {
+              activityText = extractEntityChunk(text, key, t.name);
             }
 
             e.activities.push({
@@ -255,7 +314,10 @@ function extractEntityChunk(fullText: string, targetKey: string): string {
       // so a task tagged #Customer/Globex under an Acme heading stays Globex's.
       for (const { task, own } of pendingTasks) {
         const targets = own.length ? own : keys.map(k => sectionTags.get(k)!);
-        for (const t of targets) get(t.key, t.type, t.name).tasks.push(task);
+        for (const t of targets) {
+          get(t.key, t.type, t.name).tasks.push(task);
+          fileEntityKeys.add(t.key);
+        }
       }
       pendingTasks.length = 0;
       sectionTags = new Map();
@@ -275,6 +337,11 @@ function extractEntityChunk(fullText: string, targetKey: string): string {
           typeCounts.set(t.type.toLowerCase(), (typeCounts.get(t.type.toLowerCase()) ?? 0) + 1);
           sectionTags.set(t.key, t);
         }
+        const headingEnts = findEntitiesInHeading(heading, knownEntitiesByName);
+        for (const t of headingEnts) {
+          typeCounts.set(t.type.toLowerCase(), (typeCounts.get(t.type.toLowerCase()) ?? 0) + 1);
+          if (!sectionTags.has(t.key)) sectionTags.set(t.key, t);
+        }
         continue;
       }
 
@@ -282,6 +349,18 @@ function extractEntityChunk(fullText: string, targetKey: string): string {
       for (const t of lineTags) {
         typeCounts.set(t.type.toLowerCase(), (typeCounts.get(t.type.toLowerCase()) ?? 0) + 1);
         if (!sectionTags.has(t.key)) sectionTags.set(t.key, t);
+      }
+
+      // Check [[wikilinks]] on the line to see if they reference a known entity
+      const WIKILINK_RE = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
+      let wm: RegExpExecArray | null;
+      while ((wm = WIKILINK_RE.exec(line)) !== null) {
+        const target = wm[1].trim().toLowerCase();
+        const entTagged = knownEntitiesByName.get(target);
+        if (entTagged && !sectionTags.has(entTagged.key)) {
+          typeCounts.set(entTagged.type.toLowerCase(), (typeCounts.get(entTagged.type.toLowerCase()) ?? 0) + 1);
+          sectionTags.set(entTagged.key, entTagged);
+        }
       }
 
       const parsed = parseTaskLine(line);
@@ -314,6 +393,18 @@ function extractEntityChunk(fullText: string, targetKey: string): string {
         if (!e.firstSeen || date < e.firstSeen) e.firstSeen = date;
       }
     }
+
+    for (const key of fileEntityKeys) {
+      if (inThisFile.has(key)) continue;
+      inThisFile.add(key);
+      const e = entities.get(key);
+      if (!e) continue;
+      e.noteCount++;
+      if (date) {
+        if (!e.lastSeen || date > e.lastSeen) e.lastSeen = date;
+        if (!e.firstSeen || date < e.firstSeen) e.firstSeen = date;
+      }
+    }
   }
 
   // Settle on one spelling each now that every occurrence has voted.
@@ -333,10 +424,18 @@ function extractEntityChunk(fullText: string, targetKey: string): string {
   for (const e of entities.values()) {
     e.activities.sort((a, b) => b.date.localeCompare(a.date));
     // True Last Touch: anchor to the most recent real interaction/activity
-    // so automated proposals, inbox task noise, or morning brief mentions
-    // do not falsely make a quiet account look active.
-    if (e.activities.length > 0) {
-      e.lastSeen = e.activities[0].date;
+    // or completed task, so real deliverables count.
+    const latestActivity = e.activities[0]?.date || '';
+    const completedTasks = e.tasks.filter(t => t.status === 'done');
+    const latestCompletedTask = completedTasks
+      .map(t => t.done || t.noteDate || '')
+      .filter(d => Boolean(d))
+      .sort()
+      .pop() || '';
+
+    const latestTouch = [latestActivity, latestCompletedTask].filter(Boolean).sort().pop();
+    if (latestTouch) {
+      e.lastSeen = latestTouch;
     }
   }
 
