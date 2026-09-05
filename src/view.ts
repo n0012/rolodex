@@ -949,9 +949,8 @@ export class RolodexView extends ItemView {
     }
 
     const isWeekly = reportType === 'weekly_2x2';
-    const defaultDays = isWeekly ? 7 : 30;
-    const from = (this.win.from && this.win.from !== '0000-01-01') ? this.win.from : daysAgoIso(defaultDays);
-    const to = this.win.to || todayIso();
+    const from = isWeekly ? daysAgoIso(7) : daysAgoIso(30);
+    const to = todayIso();
     const scope = isWeekly ? 'weekly' : 'monthly';
     const reportTitle = isWeekly ? `📅 Weekly 2x2 (${from} to ${to})` : `🗓️ Monthly 2x2 (${from} to ${to})`;
 
