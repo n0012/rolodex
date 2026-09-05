@@ -481,8 +481,7 @@ export class RolodexView extends ItemView {
       'Customer / Entity',
       'Last Touch',
       'Activity',
-      'Open',
-      'Late',
+      'Tasks (Late)',
       'Quick Action',
     ]) {
       head.createEl('th', { text: h });
@@ -544,15 +543,32 @@ export class RolodexView extends ItemView {
       });
     }
 
-    // Deliverables
-    tr.createEl('td', {
-      text: r.open ? String(r.open) : '—',
-      cls: r.open ? 'rolodex-num' : 'rolodex-num rolodex-muted',
+    // Tasks (consolidated Open + Late)
+    const taskTd = tr.createEl('td', {
+      cls: r.open > 0 ? 'rolodex-num rolodex-tasks-cell rolodex-clickable' : 'rolodex-num rolodex-tasks-cell rolodex-muted',
+      attr: {
+        title: r.open > 0
+          ? `${r.open} open tasks${r.overdue > 0 ? ` (${r.overdue} overdue)` : ''} (click to view)`
+          : 'No open tasks',
+      },
     });
-    tr.createEl('td', {
-      text: r.overdue ? String(r.overdue) : '—',
-      cls: r.overdue ? 'rolodex-num rolodex-overdue' : 'rolodex-num rolodex-muted',
-    });
+    if (r.open > 0) {
+      taskTd.createSpan({ text: String(r.open) });
+      if (r.overdue > 0) {
+        taskTd.createSpan({
+          text: ` (${r.overdue} late)`,
+          cls: 'rolodex-overdue',
+        });
+      }
+      taskTd.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.selected = r.key;
+        this.summary = null;
+        this.render();
+      });
+    } else {
+      taskTd.setText('—');
+    }
 
     // Quick Action (Inline Ask AI input + Execute + Brief)
     const actCell = tr.createEl('td', { cls: 'rolodex-act-cell' });
