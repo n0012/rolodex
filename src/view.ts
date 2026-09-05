@@ -462,11 +462,13 @@ export class RolodexView extends ItemView {
       (a, r) => ({
         open: a.open + r.open,
         overdue: a.overdue + r.overdue,
+        activities: a.activities + r.activities,
       }),
-      { open: 0, overdue: 0 },
+      { open: 0, overdue: 0, activities: 0 },
     );
     const cap = host.createDiv({ cls: 'rolodex-totals' });
     cap.createSpan({ text: `${rows.length} entities` });
+    cap.createSpan({ text: `${totals.activities} activities (${this.win})` });
     cap.createSpan({ text: `${totals.open} open tasks` });
     if (totals.overdue) {
       cap.createSpan({ text: `${totals.overdue} overdue`, cls: 'rolodex-overdue' });
@@ -478,6 +480,7 @@ export class RolodexView extends ItemView {
       '',
       'Customer / Entity',
       'Last Touch',
+      'Activity',
       'Open',
       'Late',
       'Quick Action',
@@ -526,8 +529,26 @@ export class RolodexView extends ItemView {
       cls: 'rolodex-muted',
     });
 
+    // Activity in window
+    const actTd = tr.createEl('td', {
+      text: r.activities > 0 ? String(r.activities) : '—',
+      cls: r.activities > 0 ? 'rolodex-num rolodex-activity-num rolodex-clickable' : 'rolodex-num rolodex-muted',
+      attr: { title: `${r.activities} activities in ${this.win} (click to view)` },
+    });
+    if (r.activities > 0) {
+      actTd.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.selected = r.key;
+        this.summary = null;
+        this.render();
+      });
+    }
+
     // Deliverables
-    tr.createEl('td', { text: String(r.open), cls: 'rolodex-num' });
+    tr.createEl('td', {
+      text: r.open ? String(r.open) : '—',
+      cls: r.open ? 'rolodex-num' : 'rolodex-num rolodex-muted',
+    });
     tr.createEl('td', {
       text: r.overdue ? String(r.overdue) : '—',
       cls: r.overdue ? 'rolodex-num rolodex-overdue' : 'rolodex-num rolodex-muted',

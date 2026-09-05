@@ -130,6 +130,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+.rolodex-activity-num {
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.rolodex-clickable {
+  cursor: pointer;
+}
+
+.rolodex-clickable:hover {
+  color: var(--text-accent);
+}
+
 .rolodex-rel {
   display: flex;
   flex-wrap: wrap;
