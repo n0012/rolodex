@@ -262,7 +262,7 @@ export const DEFAULT_SETTINGS: RolodexSettings = {
   entityNoteFolders: ['Customers', 'Projects', 'Partners', 'Organization'],
   defaultDays: 30,
   geminiApiKey: '',
-  geminiModel: 'gemini-flash-latest',
+  geminiModel: 'gemini-3.8-flash',
   defaultPrompt: DEFAULT_PROMPT,
   typeAliases: ['Projects=Project', 'Customers=Customer'],
   ignoredTypes: [

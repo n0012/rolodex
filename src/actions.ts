@@ -222,12 +222,14 @@ export async function saveTwoByTwoReport(
     const safeName = nameOrRange.replace(/[\\/:*?"<>|]/g, '');
     const entityFolder = safeName.replace(/_Risk$/, '');
     folder = `Reporting/2x2/${scope}/${entityFolder}`;
-    filename = `2x2 - Customer_${safeName} - ${today}.md`;
+    const dateRange = (from && to) ? `${from}_to_${to}` : today;
+    filename = `2x2 - Customer_${safeName} - ${dateRange}.md`;
   } else if (scope === 'project') {
     const safeName = nameOrRange.replace(/[\\/:*?"<>|]/g, '');
     const entityFolder = safeName.replace(/_Risk$/, '');
     folder = `Reporting/2x2/${scope}/${entityFolder}`;
-    filename = `2x2 - Project_${safeName} - ${today}.md`;
+    const dateRange = (from && to) ? `${from}_to_${to}` : today;
+    filename = `2x2 - Project_${safeName} - ${dateRange}.md`;
   } else if (scope === 'weekly') {
     const year = (to || today).slice(0, 4);
     const monthFolder = (to || today).slice(0, 7);
@@ -235,8 +237,9 @@ export async function saveTwoByTwoReport(
     filename = `weekly_2x2_${from || today}_to_${to || today}.md`;
   } else if (scope === 'monthly') {
     const year = (to || today).slice(0, 4);
+    const month = (to || today).slice(0, 7);
     folder = `Reporting/2x2/${scope}/${year}`;
-    filename = `monthly_2x2_${from || today}_to_${to || today}.md`;
+    filename = `monthly_2x2_${month}.md`;
   }
 
   const targetPath = `${folder}/${filename}`;

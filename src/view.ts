@@ -872,6 +872,8 @@ export class RolodexView extends ItemView {
         scope,
         e.name,
         content,
+        this.win.from,
+        this.win.to,
       );
 
       this.summary = content;
@@ -923,6 +925,8 @@ export class RolodexView extends ItemView {
         scope,
         `${e.name}_Risk`,
         content,
+        this.win.from,
+        this.win.to,
       );
 
       this.summary = content;

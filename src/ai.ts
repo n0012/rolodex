@@ -58,6 +58,15 @@ export async function loadPrompt(
   return text;
 }
 
+const GROUND_TRUTH_INSTRUCTIONS = `
+CRITICAL GROUND-TRUTH RULES:
+1. Under NO circumstances invent, extrapolate, or hallucinate metrics, company names, projects, partner names, or blockers.
+2. Rely EXCLUSIVELY and STRICTLY on the facts, stakeholders, and technical discussions explicitly mentioned in the GROUND TRUTH CONTEXT provided below.
+3. NEVER use generic placeholder or fictional company names (such as Acme Corp, Globex, Cyberdyne, Umbrella Corp, Partner X, Project Phoenix, etc.). If an engagement or blocker is not in the context, do NOT invent one.
+4. Reflect real customer stakeholders, Google peers, and technologies accurately as documented in the notes.
+5. Provide a rigorous, executive-level 2x2 matrix, key metrics, strategic insights, and Grad Expectations alignment.
+`;
+
 export async function summarize(
   apiKey: string,
   model: string,
@@ -71,7 +80,16 @@ export async function summarize(
       'Content-Type': 'application/json',
       'x-goog-api-key': apiKey,
     },
-    body: JSON.stringify({ contents: [{ parts: [{ text: `${prompt}\n\n---\n\n${context}` }] }] }),
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `${GROUND_TRUTH_INSTRUCTIONS}\n\n${prompt}\n\n---\n\n${context}` }] }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 8192,
+        thinkingConfig: {
+          thinkingBudget: 2048,
+        },
+      },
+    }),
     throw: false,
   });
 
