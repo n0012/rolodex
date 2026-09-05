@@ -26,6 +26,7 @@ import { buildRows, heat, inWindow, isOverdue, openTasks, sortRows, sortTasks } 
 import type { SortKey, Window } from './select';
 import type { EntityRecord, EntityTask, PortfolioRow, ReportType } from './types';
 import type RolodexPlugin from './main';
+import { renderEcosystemNetwork } from './graph';
 
 export const VIEW_TYPE_ROLODEX = 'rolodex-view';
 
@@ -54,6 +55,7 @@ export class RolodexView extends ItemView {
     savedPath: string;
   } | null = null;
   private actionLoading = false;
+  private ecosystemMode: 'graph' | 'chips' = 'graph';
 
   constructor(leaf: WorkspaceLeaf, plugin: RolodexPlugin) {
     super(leaf);
@@ -637,31 +639,26 @@ export class RolodexView extends ItemView {
     stats.createSpan({ text: `in ${e.noteCount} notes` });
     stats.createSpan({ text: `${e.firstSeen || '?'} → ${e.lastSeen || '?'}` });
 
-    // Filtered Related Stakeholders / Focus
-    const related = [...e.related.entries()]
-      .filter(([k]) => {
-        const other = this.plugin.index?.entities.get(k);
-        return !other || other.type.toLowerCase() !== e.type.toLowerCase();
-      })
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
-
-    if (related.length) {
-      const relRow = root.createDiv({ cls: 'rolodex-chips' });
-      relRow.createSpan({ text: 'Focus & Collaborators: ', cls: 'rolodex-muted' });
-      for (const [k, n] of related) {
-        const b = relRow.createEl('button', {
-          text: `${this.nameOf(k)} ${n}`,
-          cls: 'rolodex-chip is-mini',
-        });
-        b.setAttr('title', k);
-        b.addEventListener('click', () => {
-          this.selected = k;
-          this.summary = null;
-          this.render();
-        });
-      }
-    }
+    // Ecosystem Network Graph & Connected Entities
+    renderEcosystemNetwork(root, e, this.plugin.index, {
+      onSelectEntity: (k) => {
+        this.selected = k;
+        this.summary = null;
+        this.render();
+      },
+      onOpenNote: (pathOrTitle) => {
+        void this.app.workspace.openLinkText(pathOrTitle, '', false);
+      },
+      getNoteTitle: (target) => {
+        const file = this.app.metadataCache.getFirstLinkpathDest(target, '');
+        return file ? file.basename : null;
+      },
+      currentMode: this.ecosystemMode,
+      onToggleMode: (mode) => {
+        this.ecosystemMode = mode;
+        this.render();
+      },
+    });
 
     this.renderAiControls(root, e);
     this.renderTasks(root, e);
