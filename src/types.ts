@@ -38,7 +38,7 @@ Use only the notes provided. Where you infer rather than read, say so.`;
 export const DEFAULT_SETTINGS: RolodexSettings = {
   entityTypes: [],
   includeFolders: [],
-  excludeFolders: ['Attachments', 'Template', 'Templates', '.trash'],
+  excludeFolders: ['Attachments', 'Template', 'Templates', '.trash', '~Archive'],
   entityNoteFolders: ['Customers', 'Projects', 'Partners', 'Organization'],
   defaultDays: 30,
   geminiApiKey: '',
