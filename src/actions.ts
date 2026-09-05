@@ -215,7 +215,7 @@ export async function saveTwoByTwoReport(
   to?: string,
 ): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
-  const folder = `Reporting/2x2/${scope}`;
+  let folder = `Reporting/2x2/${scope}`;
   let filename = '';
 
   if (scope === 'customer') {
@@ -225,8 +225,12 @@ export async function saveTwoByTwoReport(
     const safeName = nameOrRange.replace(/[\\/:*?"<>|]/g, '');
     filename = `2x2 - Project_${safeName} - ${today}.md`;
   } else if (scope === 'weekly') {
+    const monthFolder = (to || today).slice(0, 7);
+    folder = `Reporting/2x2/${scope}/${monthFolder}`;
     filename = `weekly_2x2_${from || today}_to_${to || today}.md`;
   } else if (scope === 'monthly') {
+    const monthFolder = (to || today).slice(0, 7);
+    folder = `Reporting/2x2/${scope}/${monthFolder}`;
     filename = `monthly_2x2_${from || today}_to_${to || today}.md`;
   }
 
