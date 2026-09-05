@@ -23,17 +23,17 @@ function inFolder(path: string, folder: string): boolean {
   return path === f || path.startsWith(`${f}/`);
 }
 
-const AGGREGATE_HEADING_WORDS = new Set([
+const AGGREGATE_WORDS = [
   'inbox',
   'today',
+  'focus',
+  'schedule',
   'proposed',
-  'proposed review',
   'start here',
   'aging',
   'tasks',
-  'open tasks',
-  'daily check list',
-  'daily check list start of day',
+  'check list',
+  'checklist',
   'run log',
   'scratch',
   'daily log',
@@ -44,14 +44,16 @@ const AGGREGATE_HEADING_WORDS = new Set([
   'standup',
   'priorities',
   'backlog',
-]);
+  'prep',
+  'signals',
+  'blocker',
+];
 
 export function isAggregateHeading(heading: string): boolean {
   if (!heading) return false;
   const clean = heading.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
-  if (AGGREGATE_HEADING_WORDS.has(clean)) return true;
   if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return true;
-  return false;
+  return AGGREGATE_WORDS.some(w => clean.includes(w));
 }
 
 function shouldScan(path: string, s: RolodexSettings, configDir: string): boolean {
@@ -138,6 +140,49 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
     let sectionTags = new Map<string, Tagged>();
     const pendingTasks: Array<{ task: EntityTask; own: Tagged[] }> = [];
 
+function extractEntityChunk(fullText: string, targetKey: string): string {
+  const lines = fullText.split('\n');
+  const matchingIndices: number[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const tags = parseTags(lines[i]);
+    if (tags.some(t => tagKey(t.type, t.name) === targetKey)) {
+      matchingIndices.push(i);
+    }
+  }
+
+  if (!matchingIndices.length) return fullText;
+
+  const selectedLines = new Set<number>();
+  for (const idx of matchingIndices) {
+    selectedLines.add(idx);
+    const line = lines[idx];
+    const isBullet = /^(\s*[-*+]|\s*\d+\.)\s+/.test(line);
+    const baseIndent = isBullet ? line.search(/\S/) : 0;
+
+    for (let j = idx + 1; j < lines.length; j++) {
+      const next = lines[j];
+      if (!next.trim()) {
+        if (j + 1 < lines.length && lines[j + 1].search(/\S/) > baseIndent) {
+          selectedLines.add(j);
+          continue;
+        } else {
+          break;
+        }
+      }
+      const nextIndent = next.search(/\S/);
+      if (nextIndent > baseIndent) {
+        selectedLines.add(j);
+      } else {
+        break;
+      }
+    }
+  }
+
+  const result = lines.filter((_, i) => selectedLines.has(i)).join('\n').trim();
+  return result || fullText;
+}
+
     const flush = (endLine: number) => {
       const keys = [...sectionTags.keys()];
       const isAggregate = isAggregateHeading(heading);
@@ -153,12 +198,35 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
         const isPureTaskList = bodyLines.length > 0 && bodyLines.every(l => /^[-*+]\s+\[[ x/X-]\]/.test(l));
 
         if (text && !isAggregate && !isPureTaskList) {
+          const typeCountsInSec = new Map<string, number>();
+          for (const key of keys) {
+            const t = sectionTags.get(key)!;
+            const ty = t.type.toLowerCase();
+            typeCountsInSec.set(ty, (typeCountsInSec.get(ty) ?? 0) + 1);
+          }
+          const headingTags = parseTags(heading).map(resolve).filter((x): x is Tagged => x !== null);
+
           for (const key of keys) {
             const t = sectionTags.get(key)!;
             const e = get(key, t.type, t.name);
             for (const sub of t.subs) e.subs.add(sub);
+
+            // If section contains multiple entities of this type (e.g. 3 Customers in Weekly Snippets),
+            // and the heading does not specifically name this entity, isolate only this entity's chunk!
+            const hasMultipleOfThisType = (typeCountsInSec.get(t.type.toLowerCase()) ?? 0) > 1;
+            const headingHasEntity = headingTags.some(ht => ht.key === key);
+
+            let activityText = text;
+            if (hasMultipleOfThisType && !headingHasEntity) {
+              activityText = extractEntityChunk(text, key);
+            }
+
             e.activities.push({
-              date, heading, text, path: file.path, file: file.basename,
+              date,
+              heading,
+              text: activityText,
+              path: file.path,
+              file: file.basename,
               alsoHere: keys.filter(k => k !== key),
             });
             // Relate only across different types (never Customer <-> Customer)
