@@ -1,11 +1,62 @@
-/** Gemini summaries and AI command engine. Uses Obsidian's requestUrl. */
-
-import { requestUrl } from 'obsidian';
+import { App, requestUrl } from 'obsidian';
 import { isOverdue, openTasks, sortTasks } from './select';
 import { todayIso, tryDeterministicCommand } from './parse';
-import type { AiCommandResult, EntityRecord, EntityTask } from './types';
+import { DEFAULT_PROMPT, PROMPT_DEFINITIONS } from './types';
+import type { AiCommandResult, EntityRecord, EntityTask, ReportType } from './types';
 import type { Window } from './select';
 import type { TaskUpdateProposal } from './actions';
+
+export function getPromptsDir(app: App, pluginId = 'rolodex'): string {
+  return `${app.vault.configDir}/plugins/${pluginId}/prompts`;
+}
+
+/**
+ * Ensures that the prompts directory and default prompt markdown files exist on disk.
+ */
+export async function ensurePromptFiles(app: App, pluginId = 'rolodex'): Promise<void> {
+  const dir = getPromptsDir(app, pluginId);
+  const adapter = app.vault.adapter;
+  if (!(await adapter.exists(dir))) {
+    await adapter.mkdir(dir);
+  }
+  for (const def of Object.values(PROMPT_DEFINITIONS)) {
+    const p = `${dir}/${def.filename}`;
+    if (!(await adapter.exists(p))) {
+      await adapter.write(p, def.defaultText);
+    }
+  }
+}
+
+/**
+ * Loads a prompt from disk (allowing user edits) or falls back to built-in default.
+ */
+export async function loadPrompt(
+  app: App,
+  reportType: ReportType,
+  variables: Record<string, string> = {},
+  pluginId = 'rolodex',
+): Promise<string> {
+  const def = PROMPT_DEFINITIONS[reportType];
+  let text = def ? def.defaultText : DEFAULT_PROMPT;
+  const p = `${getPromptsDir(app, pluginId)}/${def?.filename || 'briefing.md'}`;
+
+  try {
+    if (await app.vault.adapter.exists(p)) {
+      const diskText = await app.vault.adapter.read(p);
+      if (diskText.trim()) text = diskText;
+    }
+  } catch (err) {
+    console.warn(`Rolodex: unable to read prompt file ${p}`, err);
+  }
+
+  // Interpolate template variables: {EntityName}, {StartDate}, {EndDate}
+  for (const [k, v] of Object.entries(variables)) {
+    const re = new RegExp(`\\{${k}\\}`, 'g');
+    text = text.replace(re, v);
+  }
+
+  return text;
+}
 
 export async function summarize(
   apiKey: string,
@@ -220,6 +271,77 @@ export function buildContext(
     }
     parts.push(block);
     used += block.length;
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Builds rich portfolio context across all active entities in a time window
+ * for Weekly and Monthly 2x2 synthesis.
+ */
+export function buildPortfolioContext(
+  w: Window,
+  all: Map<string, EntityRecord>,
+  charBudget = 80_000,
+): string {
+  const today = todayIso();
+  const parts: string[] = [];
+
+  parts.push(`Portfolio Overview — Window: ${w.from} to ${w.to} (Today is ${today})`);
+
+  // Active entities in this window
+  const activeEntities = [...all.values()]
+    .filter((e) => e.activities.some((a) => !a.date || a.date >= w.from) || e.tasks.some((t) => t.status === 'open'))
+    .sort((a, b) => b.activities.length - a.activities.length);
+
+  parts.push(`Total Active Accounts & Projects: ${activeEntities.length}`);
+
+  // Summary of completions across portfolio
+  const allRecentlyDone = activeEntities.flatMap((e) =>
+    e.tasks
+      .filter((t) => t.status === 'done' && (t.done ?? t.noteDate) >= w.from)
+      .map((t) => ({ entity: e.name, type: e.type, text: t.text, date: t.done ?? t.noteDate }))
+  ).sort((a, b) => b.date.localeCompare(a.date));
+
+  if (allRecentlyDone.length) {
+    parts.push(`\n## Completed Deliverables & Tasks (${allRecentlyDone.length})`);
+    for (const t of allRecentlyDone.slice(0, 50)) {
+      parts.push(`- [x] [${t.type}/${t.entity}] ${t.text} (${t.date})`);
+    }
+  }
+
+  // Active open blockers (#waiting / overdue)
+  const openBlockers = activeEntities.flatMap((e) =>
+    openTasks(e)
+      .filter((t) => t.text.includes('#waiting') || isOverdue(t, today))
+      .map((t) => ({ entity: e.name, type: e.type, text: t.text, due: t.due }))
+  );
+  if (openBlockers.length) {
+    parts.push(`\n## Active Blockers & Overdue Priorities (${openBlockers.length})`);
+    for (const t of openBlockers.slice(0, 30)) {
+      parts.push(`- [ ] [${t.type}/${t.entity}] ${t.text}${t.due ? ` (due ${t.due})` : ''}`);
+    }
+  }
+
+  // Per-entity activities in the window
+  parts.push('\n## Notes & Meeting Highlights by Entity (Newest First)');
+  let used = parts.join('\n').length;
+
+  for (const e of activeEntities) {
+    const recentActs = e.activities.filter((a) => !a.date || a.date >= w.from);
+    if (!recentActs.length) continue;
+
+    parts.push(`\n### ${e.type}: ${e.name} (${recentActs.length} notes)`);
+    for (const a of recentActs) {
+      const block = `[${a.date || 'Undated'}] ${a.heading ? `${a.heading}: ` : ''}${a.text}`;
+      if (used + block.length > charBudget) {
+        parts.push('\n… (additional historical notes omitted for length)');
+        return parts.join('\n');
+      }
+      parts.push(block);
+      used += block.length;
+    }
   }
 
   return parts.join('\n');

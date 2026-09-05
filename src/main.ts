@@ -3,6 +3,7 @@ import {
 } from 'obsidian';
 import { buildIndex } from './scanner';
 import { todayIso } from './parse';
+import { ensurePromptFiles } from './ai';
 import { RolodexView, VIEW_TYPE_ROLODEX } from './view';
 import { DEFAULT_PROMPT, DEFAULT_SETTINGS } from './types';
 import type { EntityTask, RolodexIndex, RolodexSettings } from './types';
@@ -18,6 +19,7 @@ export default class RolodexPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    await ensurePromptFiles(this.app, this.manifest.id);
 
     this.registerView(VIEW_TYPE_ROLODEX, leaf => new RolodexView(leaf, this));
     this.addSettingTab(new RolodexSettingTab(this.app, this));
@@ -245,10 +247,10 @@ class RolodexSettingTab extends PluginSettingTab {
         this.display();
       }));
 
-    new Setting(containerEl).setName('AI briefings').setHeading();
+    new Setting(containerEl).setName('AI briefings & 2x2 Reports').setHeading();
     containerEl.createEl('p', {
       cls: 'rolodex-muted',
-      text: 'Optional. Without a key everything still works — use "Copy context" to paste the assembled notes into any assistant.',
+      text: 'Optional. Without a key everything still works — use "Copy context" to paste the assembled notes into any assistant. Prompt templates are stored as editable markdown files in your vault at .obsidian/plugins/rolodex/prompts/ (customer-2x2.md, project-2x2.md, weekly-2x2.md, monthly-2x2.md, briefing.md). You can customize them directly in Obsidian.',
     });
 
     let keyInput: HTMLInputElement | null = null;
@@ -259,15 +261,15 @@ class RolodexSettingTab extends PluginSettingTab {
         keyInput = t.inputEl;
         t.inputEl.type = 'password';
         t.setPlaceholder('AIza…')
-          .setValue(this.plugin.settings.geminiApiKey)
-          .onChange(async v => {
-            this.plugin.settings.geminiApiKey = v.trim();
-            await this.plugin.saveSettings();
-          });
-      })
-      .addExtraButton(b => b.setIcon('eye').setTooltip('Show or hide').onClick(() => {
-        if (keyInput) keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
-      }));
+        .setValue(this.plugin.settings.geminiApiKey)
+        .onChange(async v => {
+          this.plugin.settings.geminiApiKey = v.trim();
+          await this.plugin.saveSettings();
+        });
+    })
+    .addExtraButton(b => b.setIcon('eye').setTooltip('Show or hide').onClick(() => {
+      if (keyInput) keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+    }));
 
     new Setting(containerEl)
       .setName('Model')
@@ -281,10 +283,10 @@ class RolodexSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Briefing prompt')
-      .setDesc('Prepended to the assembled notes.')
+      .setName('Default Briefing Prompt')
+      .setDesc('Fallback prompt for executive briefs (also stored in .obsidian/plugins/rolodex/prompts/briefing.md).')
       .addTextArea(t => {
-        t.inputEl.rows = 10;
+        t.inputEl.rows = 6;
         t.setValue(this.plugin.settings.defaultPrompt)
           .onChange(async v => {
             this.plugin.settings.defaultPrompt = v;
@@ -295,6 +297,14 @@ class RolodexSettingTab extends PluginSettingTab {
         this.plugin.settings.defaultPrompt = DEFAULT_PROMPT;
         await this.plugin.saveSettings();
         this.display();
+      }));
+
+    new Setting(containerEl)
+      .setName('Prompt Templates on Disk')
+      .setDesc('Ensure all 5 prompt files (customer-2x2, project-2x2, weekly-2x2, monthly-2x2, briefing) exist in .obsidian/plugins/rolodex/prompts/.')
+      .addButton(b => b.setButtonText('Verify / Restore Prompts').onClick(async () => {
+        await ensurePromptFiles(this.app, this.plugin.manifest.id);
+        new Notice('Verified prompt files in .obsidian/plugins/rolodex/prompts/');
       }));
   }
 }

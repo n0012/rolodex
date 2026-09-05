@@ -6,18 +6,25 @@ import {
   TFile,
   WorkspaceLeaf,
 } from 'obsidian';
-import { buildContext, executeAiCommand, summarize } from './ai';
+import {
+  buildContext,
+  buildPortfolioContext,
+  executeAiCommand,
+  loadPrompt,
+  summarize,
+} from './ai';
 import {
   applyTaskUpdates,
   appendSectionToNote,
   appendTaskToNote,
   reclassifyTagInVault,
+  saveTwoByTwoReport,
 } from './actions';
 import type { TaskUpdateProposal } from './actions';
 import { daysAgoIso, todayIso } from './parse';
 import { buildRows, heat, isOverdue, openTasks, sortRows, sortTasks } from './select';
 import type { SortKey, Window } from './select';
-import type { EntityRecord, EntityTask, PortfolioRow } from './types';
+import type { EntityRecord, EntityTask, PortfolioRow, ReportType } from './types';
 import type RolodexPlugin from './main';
 
 export const VIEW_TYPE_ROLODEX = 'rolodex-view';
@@ -39,6 +46,13 @@ export class RolodexView extends ItemView {
   private openOnly = true;
   private selected: string | null = null;
   private summary: string | null = null;
+  private entityReportPath: string | null = null;
+  private entityReportTitle: string | null = null;
+  private portfolioReport: {
+    title: string;
+    content: string;
+    savedPath: string;
+  } | null = null;
   private actionLoading = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: RolodexPlugin) {
@@ -362,6 +376,22 @@ export class RolodexView extends ItemView {
       return;
     }
 
+    const reportsRow = root.createDiv({ cls: 'rolodex-row rolodex-report-triggers' });
+    reportsRow.createSpan({ text: 'Executive 2x2: ', cls: 'rolodex-muted' });
+    new ButtonComponent(reportsRow)
+      .setButtonText('📅 Weekly 2x2')
+      .setTooltip('Generate weekly 2x2 for active window and log to Reporting/2x2/weekly/')
+      .onClick(() => this.triggerPortfolioTwoByTwo('weekly_2x2'));
+    new ButtonComponent(reportsRow)
+      .setButtonText('🗓️ Monthly 2x2')
+      .setTooltip('Generate monthly 2x2 for active window and log to Reporting/2x2/monthly/')
+      .onClick(() => this.triggerPortfolioTwoByTwo('monthly_2x2'));
+
+    const portReportHost = root.createDiv({ cls: 'rolodex-portfolio-report' });
+    if (this.portfolioReport) {
+      this.renderPortfolioReportCard(portReportHost, this.portfolioReport);
+    }
+
     const tools = root.createDiv({ cls: 'rolodex-row' });
     const search = tools.createEl('input', {
       type: 'search',
@@ -525,6 +555,12 @@ export class RolodexView extends ItemView {
       attr: { title: `Executive Briefing for ${r.name}` },
     });
 
+    const twoByTwoBtn = actWrap.createEl('button', {
+      text: '📊',
+      cls: 'rolodex-chip is-mini rolodex-row-btn',
+      attr: { title: `Generate 2x2 Report for ${r.name}` },
+    });
+
     let proposalTr: HTMLElement | null = null;
 
     const runRowAction = async () => {
@@ -542,6 +578,16 @@ export class RolodexView extends ItemView {
         this.summary = null;
         this.render();
         this.triggerBriefing();
+        return;
+      }
+
+      // If user typed "2x2" or "report", trigger 2x2 directly
+      if (/^(?:2x2|report|two by two)$/i.test(val)) {
+        this.selected = r.key;
+        this.summary = null;
+        this.render();
+        const entity = this.plugin.index?.entities.get(r.key);
+        if (entity) this.triggerEntityTwoByTwo(entity);
         return;
       }
 
@@ -595,8 +641,20 @@ export class RolodexView extends ItemView {
     briefBtn.addEventListener('click', async () => {
       this.selected = r.key;
       this.summary = null;
+      this.entityReportPath = null;
+      this.entityReportTitle = null;
       this.render();
       this.triggerBriefing();
+    });
+
+    twoByTwoBtn.addEventListener('click', async () => {
+      this.selected = r.key;
+      this.summary = null;
+      this.entityReportPath = null;
+      this.entityReportTitle = null;
+      this.render();
+      const entity = this.plugin.index?.entities.get(r.key);
+      if (entity) this.triggerEntityTwoByTwo(entity);
     });
   }
 
@@ -607,6 +665,9 @@ export class RolodexView extends ItemView {
     if (!e) {
       root.createDiv({ text: `${key} is no longer in the index.`, cls: 'rolodex-muted' });
       this.selected = null;
+      this.summary = null;
+      this.entityReportPath = null;
+      this.entityReportTitle = null;
       return;
     }
 
@@ -615,6 +676,8 @@ export class RolodexView extends ItemView {
     back.addEventListener('click', () => {
       this.selected = null;
       this.summary = null;
+      this.entityReportPath = null;
+      this.entityReportTitle = null;
       this.render();
     });
 
@@ -700,9 +763,21 @@ export class RolodexView extends ItemView {
       .setCta()
       .onClick(() => this.triggerBriefing());
 
+    const isProject = e.type.toLowerCase() === 'project';
+    const reportBtnText = isProject ? '📊 Project 2x2' : '📊 Customer 2x2';
+    new ButtonComponent(row)
+      .setButtonText(reportBtnText)
+      .onClick(() => this.triggerEntityTwoByTwo(e));
+
     const host = root.createDiv({ cls: 'rolodex-summary' });
     if (this.summary) {
-      this.renderExecutiveBrief(host, this.summary, e);
+      this.renderExecutiveBrief(
+        host,
+        this.summary,
+        e,
+        this.entityReportPath,
+        this.entityReportTitle || 'Executive Brief',
+      );
     }
   }
 
@@ -722,13 +797,21 @@ export class RolodexView extends ItemView {
     host.createDiv({ text: '🧠 Synthesizing executive brief…', cls: 'rolodex-muted' });
 
     try {
+      const prompt = await loadPrompt(
+        this.app,
+        'brief',
+        { EntityName: e.name },
+        this.plugin.manifest.id,
+      );
       this.summary = await summarize(
         this.plugin.settings.geminiApiKey,
         this.plugin.settings.geminiModel,
-        this.plugin.settings.defaultPrompt,
+        prompt || this.plugin.settings.defaultPrompt,
         buildContext(e, this.win, this.plugin.index!.entities),
       );
-      this.renderExecutiveBrief(host, this.summary, e);
+      this.entityReportPath = null;
+      this.entityReportTitle = '🧠 Executive Brief';
+      this.renderExecutiveBrief(host, this.summary, e, null, this.entityReportTitle);
     } catch (err: any) {
       host.empty();
       host.createDiv({
@@ -738,14 +821,195 @@ export class RolodexView extends ItemView {
     }
   }
 
-  private renderExecutiveBrief(host: HTMLElement, summary: string, e: EntityRecord) {
+  private async triggerEntityTwoByTwo(e: EntityRecord) {
+    if (!this.plugin.settings.geminiApiKey) {
+      new Notice('Add a Gemini API key in Rolodex settings first');
+      return;
+    }
+
+    const host = this.body().querySelector('.rolodex-summary') as HTMLElement | null;
+    if (!host) return;
+    host.empty();
+    host.createDiv({ text: `📊 Synthesizing 2x2 report for ${e.name}…`, cls: 'rolodex-muted' });
+
+    const isProject = e.type.toLowerCase() === 'project';
+    const reportType: ReportType = isProject ? 'project_2x2' : 'customer_2x2';
+    const scope: 'customer' | 'project' = isProject ? 'project' : 'customer';
+
+    try {
+      const prompt = await loadPrompt(
+        this.app,
+        reportType,
+        { EntityName: e.name },
+        this.plugin.manifest.id,
+      );
+      const context = buildContext(e, this.win, this.plugin.index!.entities);
+      const content = await summarize(
+        this.plugin.settings.geminiApiKey,
+        this.plugin.settings.geminiModel,
+        prompt,
+        context,
+      );
+
+      // Save to Reporting/2x2/<scope>/
+      const savedPath = await saveTwoByTwoReport(
+        this.app,
+        scope,
+        e.name,
+        content,
+      );
+
+      this.summary = content;
+      this.entityReportPath = savedPath;
+      this.entityReportTitle = isProject ? '📊 Project 2x2' : '📊 Customer 2x2';
+      this.renderExecutiveBrief(host, content, e, savedPath, this.entityReportTitle);
+      new Notice(`2x2 saved to ${savedPath}`);
+    } catch (err: any) {
+      host.empty();
+      host.createDiv({
+        text: `Error: ${err.message || String(err)}`,
+        cls: 'rolodex-error',
+      });
+    }
+  }
+
+  private async triggerPortfolioTwoByTwo(reportType: 'weekly_2x2' | 'monthly_2x2') {
+    const idx = this.plugin.index;
+    if (!idx) return;
+
+    if (!this.plugin.settings.geminiApiKey) {
+      new Notice('Add a Gemini API key in Rolodex settings first');
+      return;
+    }
+
+    const isWeekly = reportType === 'weekly_2x2';
+    const defaultDays = isWeekly ? 7 : 30;
+    const from = (this.win.from && this.win.from !== '0000-01-01') ? this.win.from : daysAgoIso(defaultDays);
+    const to = this.win.to || todayIso();
+    const scope = isWeekly ? 'weekly' : 'monthly';
+    const reportTitle = isWeekly ? `📅 Weekly 2x2 (${from} to ${to})` : `🗓️ Monthly 2x2 (${from} to ${to})`;
+
+    const host = this.body().querySelector('.rolodex-portfolio-report') as HTMLElement | null;
+    if (!host) return;
+    host.empty();
+    host.createDiv({ text: `⏳ Synthesizing ${reportTitle} across portfolio…`, cls: 'rolodex-muted' });
+
+    try {
+      const prompt = await loadPrompt(
+        this.app,
+        reportType,
+        { StartDate: from, EndDate: to },
+        this.plugin.manifest.id,
+      );
+      const context = buildPortfolioContext({ from, to }, idx.entities);
+      const content = await summarize(
+        this.plugin.settings.geminiApiKey,
+        this.plugin.settings.geminiModel,
+        prompt,
+        context,
+      );
+
+      // Auto-save to Reporting/2x2/<scope>/
+      const savedPath = await saveTwoByTwoReport(
+        this.app,
+        scope,
+        `${from}_to_${to}`,
+        content,
+        from,
+        to,
+      );
+
+      this.portfolioReport = {
+        title: reportTitle,
+        content,
+        savedPath,
+      };
+
+      this.renderPortfolioReportCard(host, this.portfolioReport);
+      new Notice(`2x2 saved to ${savedPath}`);
+    } catch (err: any) {
+      host.empty();
+      host.createDiv({
+        text: `Error: ${err.message || String(err)}`,
+        cls: 'rolodex-error',
+      });
+    }
+  }
+
+  private renderPortfolioReportCard(
+    host: HTMLElement,
+    report: { title: string; content: string; savedPath: string },
+  ) {
     host.empty();
     const card = host.createDiv({ cls: 'rolodex-brief-card' });
 
     const head = card.createDiv({ cls: 'rolodex-brief-head' });
-    head.createSpan({ text: `🧠 Executive Brief: ${e.name}`, cls: 'rolodex-brief-title' });
+    head.createSpan({ text: report.title, cls: 'rolodex-brief-title' });
 
     const actions = head.createDiv({ cls: 'rolodex-brief-actions' });
+
+    const openBtn = actions.createEl('button', {
+      text: '📄 Open Saved Note',
+      cls: 'rolodex-chip is-mini is-cta',
+    });
+    openBtn.addEventListener('click', () => {
+      void this.app.workspace.openLinkText(report.savedPath, '', false);
+    });
+
+    const copyBtn = actions.createEl('button', {
+      text: '📋 Copy',
+      cls: 'rolodex-chip is-mini',
+    });
+    copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(report.content);
+      new Notice('Copied report to clipboard');
+    });
+
+    const dismissBtn = actions.createEl('button', {
+      text: '✕ Dismiss',
+      cls: 'rolodex-chip is-mini',
+    });
+    dismissBtn.addEventListener('click', () => {
+      this.portfolioReport = null;
+      host.empty();
+    });
+
+    const savedBadge = card.createDiv({ cls: 'rolodex-saved-badge' });
+    savedBadge.createSpan({ text: '📁 Logged to: ' });
+    const link = savedBadge.createEl('a', { text: report.savedPath });
+    link.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      void this.app.workspace.openLinkText(report.savedPath, '', false);
+    });
+
+    const body = card.createDiv({ cls: 'rolodex-brief-body' });
+    MarkdownRenderer.render(this.app, report.content, body, '', this.plugin);
+  }
+
+  private renderExecutiveBrief(
+    host: HTMLElement,
+    summary: string,
+    e: EntityRecord,
+    savedPath?: string | null,
+    titlePrefix = 'Executive Brief',
+  ) {
+    host.empty();
+    const card = host.createDiv({ cls: 'rolodex-brief-card' });
+
+    const head = card.createDiv({ cls: 'rolodex-brief-head' });
+    head.createSpan({ text: `${titlePrefix}: ${e.name}`, cls: 'rolodex-brief-title' });
+
+    const actions = head.createDiv({ cls: 'rolodex-brief-actions' });
+
+    if (savedPath) {
+      const openBtn = actions.createEl('button', {
+        text: '📄 Open Saved Note',
+        cls: 'rolodex-chip is-mini is-cta',
+      });
+      openBtn.addEventListener('click', () => {
+        void this.app.workspace.openLinkText(savedPath, '', false);
+      });
+    }
 
     // Save to Today's Note
     const saveTodayBtn = actions.createEl('button', {
@@ -757,7 +1021,7 @@ export class RolodexView extends ItemView {
       const ok = await appendSectionToNote(
         this.app,
         todayPath,
-        `Briefing: ${e.name}`,
+        `${titlePrefix}: ${e.name}`,
         summary,
       );
       if (ok) new Notice(`Saved to ${todayPath}`);
@@ -774,7 +1038,7 @@ export class RolodexView extends ItemView {
         await appendSectionToNote(
           this.app,
           e.notePath!,
-          `Executive Brief (${todayIso()})`,
+          `${titlePrefix} (${todayIso()})`,
           summary,
         );
         new Notice(`Saved to ${e.notePath}`);
@@ -790,6 +1054,28 @@ export class RolodexView extends ItemView {
       await navigator.clipboard.writeText(summary);
       new Notice('Briefing copied to clipboard');
     });
+
+    // Dismiss Button
+    const dismissBtn = actions.createEl('button', {
+      text: '✕',
+      cls: 'rolodex-chip is-mini',
+    });
+    dismissBtn.addEventListener('click', () => {
+      this.summary = null;
+      this.entityReportPath = null;
+      this.entityReportTitle = null;
+      host.empty();
+    });
+
+    if (savedPath) {
+      const savedBadge = card.createDiv({ cls: 'rolodex-saved-badge' });
+      savedBadge.createSpan({ text: '📁 Logged to: ' });
+      const link = savedBadge.createEl('a', { text: savedPath });
+      link.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        void this.app.workspace.openLinkText(savedPath, '', false);
+      });
+    }
 
     const body = card.createDiv({ cls: 'rolodex-brief-body' });
     MarkdownRenderer.render(this.app, summary, body, '', this.plugin);

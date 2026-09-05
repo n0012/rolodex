@@ -202,6 +202,77 @@ export async function appendSectionToNote(
   }
 }
 
+/**
+ * Saves a 2x2 report to Reporting/2x2/<scope>/<filename>.md.
+ * Overwrites if exists, or creates parent folders and new file.
+ */
+export async function saveTwoByTwoReport(
+  app: App,
+  scope: 'customer' | 'project' | 'weekly' | 'monthly',
+  nameOrRange: string,
+  content: string,
+  from?: string,
+  to?: string,
+): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  const folder = `Reporting/2x2/${scope}`;
+  let filename = '';
+
+  if (scope === 'customer') {
+    const safeName = nameOrRange.replace(/[\\/:*?"<>|]/g, '');
+    filename = `2x2 - Customer_${safeName} - ${today}.md`;
+  } else if (scope === 'project') {
+    const safeName = nameOrRange.replace(/[\\/:*?"<>|]/g, '');
+    filename = `2x2 - Project_${safeName} - ${today}.md`;
+  } else if (scope === 'weekly') {
+    filename = `weekly_2x2_${from || today}_to_${to || today}.md`;
+  } else if (scope === 'monthly') {
+    filename = `monthly_2x2_${from || today}_to_${to || today}.md`;
+  }
+
+  const targetPath = `${folder}/${filename}`;
+  const adapter = app.vault.adapter;
+
+  // Ensure folders exist
+  const parts = folder.split('/');
+  let current = '';
+  for (const p of parts) {
+    current = current ? `${current}/${p}` : p;
+    if (!(await adapter.exists(current))) {
+      await adapter.mkdir(current);
+    }
+  }
+
+  // Prepend clean frontmatter if not present
+  let fileContent = content.trim();
+  if (!fileContent.startsWith('---')) {
+    const timeStr = new Date().toTimeString().slice(0, 5);
+    const frontmatter = [
+      '---',
+      `created: ${today}T${timeStr}`,
+      `type: 2x2`,
+      `scope: ${scope}`,
+      `tags:`,
+      `  - 2x2`,
+      `  - 2x2/${scope}`,
+      '---',
+      '',
+    ].join('\n');
+    fileContent = `${frontmatter}\n${fileContent}\n`;
+  } else {
+    fileContent = `${fileContent}\n`;
+  }
+
+  const existing = app.vault.getAbstractFileByPath(targetPath);
+  if (existing instanceof TFile) {
+    await app.vault.modify(existing, fileContent);
+  } else {
+    await app.vault.create(targetPath, fileContent);
+  }
+
+  return targetPath;
+}
+
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

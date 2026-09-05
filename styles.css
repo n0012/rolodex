@@ -442,3 +442,50 @@
   border-bottom: 2px solid var(--interactive-accent);
 }
 
+.rolodex-report-triggers {
+  margin: 0.5rem 0;
+  padding: 0.4rem 0.6rem;
+  background: var(--background-secondary);
+  border-radius: var(--radius-m);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.rolodex-saved-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  margin-bottom: 0.6rem;
+  background: var(--background-secondary-alt);
+  border-radius: var(--radius-s);
+  border-left: 3px solid var(--interactive-accent);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.rolodex-saved-badge a {
+  color: var(--interactive-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.rolodex-brief-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8rem 0;
+}
+
+.rolodex-brief-body th,
+.rolodex-brief-body td {
+  border: 1px solid var(--background-modifier-border);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.rolodex-brief-body th {
+  background: var(--background-secondary);
+  font-weight: 600;
+}
+
+

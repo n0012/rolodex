@@ -23,7 +23,21 @@ export interface RolodexSettings {
   ignoredTypes: string[];
 }
 
-export const DEFAULT_PROMPT = `You are briefing me before I re-engage with this entity.
+export type ReportType = 'brief' | 'customer_2x2' | 'project_2x2' | 'weekly_2x2' | 'monthly_2x2';
+
+export interface PromptDefinition {
+  id: ReportType;
+  filename: string;
+  label: string;
+  defaultText: string;
+}
+
+export const PROMPT_DEFINITIONS: Record<ReportType, PromptDefinition> = {
+  brief: {
+    id: 'brief',
+    filename: 'briefing.md',
+    label: 'Executive Brief',
+    defaultText: `You are briefing me before I re-engage with this entity.
 
 Give me, in this order and nothing else:
 
@@ -33,7 +47,123 @@ Give me, in this order and nothing else:
 4. **Risks** — name them concretely; write "none evident" rather than inventing one.
 5. **Next step** — a single action I could take this week.
 
-Use only the notes provided. Where you infer rather than read, say so.`;
+Use only the notes provided. Where you infer rather than read, say so.`,
+  },
+  customer_2x2: {
+    id: 'customer_2x2',
+    filename: 'customer-2x2.md',
+    label: 'Customer 2x2 Report',
+    defaultText: `You are an executive business analyst and Google Cloud Customer Engineer lead. Create a concise executive 2x2 matrix and status report for the specified Customer based on the provided notes and activities.
+
+Output format (use clean GitHub-flavored markdown):
+
+# 2x2 Report: {EntityName} ({StartDate} to {EndDate})
+
+### Executive Summary
+[2-3 punchy sentences summarizing commercial & technical momentum, primary blocker, and key strategic lever.]
+
+| **Key Accomplishments & Customer Progress** | **Next Steps & Upcoming Priorities** |
+| :--- | :--- |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+| **Challenges & Blockers** | **Learning & Development** |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+
+### Key Metrics
+* **Interactions**: [Meeting count / key stakeholder engagements]
+* **Decisions Made**: [Key architectural / strategic decisions]
+* **Products & Workloads Touched**: [Vertex AI, Gemini, BigQuery, Infrastructure, etc.]
+
+### Strategic Insights
+* [Bullet points on customer psychology, competitive wedge vs AWS/Azure, partner leverage, or procurement insights]
+
+### Grad Expectations Alignment
+* **Customer Impact**: [Concrete value delivered or unblocked revenue]
+* **Technical Excellence**: [Architecture, POC, or technical guidance delivered]
+* **Leadership & Collaboration**: [Cross-functional orchestration across AE, PSO, product, partners]`,
+  },
+  project_2x2: {
+    id: 'project_2x2',
+    filename: 'project-2x2.md',
+    label: 'Project 2x2 Report',
+    defaultText: `You are a Principal Solutions Architect. Create a concise 2x2 technical milestone report for the specified Project based on the provided notes and activities.
+
+Output format (use clean GitHub-flavored markdown):
+
+# Project 2x2 Report: {EntityName} ({StartDate} to {EndDate})
+
+### Executive Summary
+[2-3 sentences summarizing technical status, architecture progress, and delivery runway.]
+
+| **Architecture Progress & Milestones** | **Next Sprints & Technical Priorities** |
+| :--- | :--- |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+| **Technical Roadblocks & Dependencies** | **Architecture Learnings & Tooling** |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+
+### Key Deliverables & Artifacts
+* [PRDs, repos, demo prototypes, design specs completed or in progress]
+
+### Strategic Fit & Ecosystem Impact
+* [How this project impacts GCP adoption, reusable assets, or field enablement]`,
+  },
+  weekly_2x2: {
+    id: 'weekly_2x2',
+    filename: 'weekly-2x2.md',
+    label: 'Weekly 2x2 Report',
+    defaultText: `You are a Lead Customer Engineer preparing your weekly executive 2x2 status review across your entire book of accounts.
+
+Output format (use clean GitHub-flavored markdown):
+
+# Weekly 2x2 Report: {StartDate} to {EndDate}
+
+### Weekly Executive Summary
+[High-level synthesis of major weekly wins, critical deal movements, and primary blockers across the territory.]
+
+| **Key Accomplishments Across Accounts** | **Next Week's Priorities & P0s** |
+| :--- | :--- |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+| **Customer & Partner Blockers** | **Technical Learnings & Reusable Assets** |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+
+### Territory Velocity & Highlights
+* **Active Customer Touches**: [Key meetings and accounts engaged]
+* **Hygiene & Consumption**: [Workload movements, support case resolutions, quota/deal approvals]
+
+### Key Account Spotlight
+* [Brief 1-2 sentence updates on top active accounts]`,
+  },
+  monthly_2x2: {
+    id: 'monthly_2x2',
+    filename: 'monthly-2x2.md',
+    label: 'Monthly 2x2 Report',
+    defaultText: `You are an executive Cloud Customer Engineer lead compiling the monthly portfolio 2x2 review for leadership.
+
+Output format (use clean GitHub-flavored markdown):
+
+# Monthly 2x2 Report: {StartDate} to {EndDate}
+
+### Monthly Executive Summary
+[Strategic narrative on monthly quota attainment, consumption trends, significant architecture milestones, and operational health.]
+
+| **Major Monthly Wins & Customer Impact** | **Strategic Focus for Next Month** |
+| :--- | :--- |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+| **Critical Territory Blockers & Escalations** | **Skill & Technical Advancements** |
+| <ul><li>...</li></ul> | <ul><li>...</li></ul> |
+
+### Monthly Key Metrics
+* **Total Significant Interactions**: [Summary of customer and partner sessions]
+* **Key Deal Milestones**: [Stage movements, workloads secured, POCs closed]
+* **Escalations Resolved**: [Major cases / capacity issues mitigated]
+
+### Grad Expectations & Leadership Summary
+* **Customer Impact**: [Major customer transformations and business value]
+* **Technical Excellence**: [Solutions architecture, whitepapers, benchmarks, innovative patterns]
+* **Leadership & Culture**: [Mentorship, cross-team enablement, community contributions]`,
+  },
+};
+
+export const DEFAULT_PROMPT = PROMPT_DEFINITIONS.brief.defaultText;
 
 export const DEFAULT_SETTINGS: RolodexSettings = {
   entityTypes: [],
