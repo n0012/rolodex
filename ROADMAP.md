@@ -25,6 +25,14 @@ This document outlines the strategic enhancements planned and delivered for the 
 - **Strength / Recency Filter Slider**: Interactive slider to filter nodes by minimum touch count (e.g. `Touches ≥ 3`) or by recency (e.g. last 30 days vs all-time).
 - **Direct Collaborator Quick-Actions**: Click-to-action menu on a stakeholder node to quickly copy contact email, jump to recent mentions, or file a task assigned to that person.
 
+### 👥 Key Persons & Attendee Extraction (Delivered in v1.4.10)
+- **Problem**: Attendees and key collaborator identities inside meeting notes were plain text on `**Attendees:**` lines, meaning the graph only surfaced people if someone explicitly typed `[[wikilinks]]`.
+- **Implemented Architecture**:
+  - **Attendee Extraction**: Scans all `**Attendees:**` and `**Participants:**` lines across daily notes.
+  - **Identity Resolution**: Maps email-only attendees (e.g. `davidpichardo@google.com`) to full names using a vault-wide pre-pass dictionary; reorders `Last, First (email)` conventions.
+  - **Unified Stakeholder Nodes**: Seamlessly unifies parsed attendees (`person/...`) and note links (`link/...`) into canonical stakeholder nodes in the Ecosystem Graph.
+  - **Smart Filtering**: Automatically filters out conference rooms, GVC equipment, and self (`losiern`).
+
 ---
 
 ## 📋 Upcoming Roadmap Features
