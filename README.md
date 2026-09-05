@@ -26,51 +26,27 @@ Executive 2x2:      [ 📅 Weekly 2x2 ]   [ 🗓️ Monthly 2x2 ]
 
 ---
 
-## Features
+## What it does
 
-### 1. Portfolio Cockpit
-- **Recency Heat Indicators**: Immediate visual signal of relationship health:
-  - `●` **Warm**: Active within recent days.
-  - `◐` **Cooling**: Slipping past your expected touch frequency.
-  - `○` **Cold**: Quiescent or dormant.
-- **Commitment Tracking**: Tracks open tasks and overdue deadlines per entity. Full support for [Tasks plugin](https://publish.obsidian.md/tasks/) emojis: `📅` due, `⏳` scheduled, `🛫` start, `➕` created, `✅` done, `❌` cancelled, and `🔺⏫🔼🔽⏬` priority.
-- **⚡ Open Work Only Toggle**: Instantly filters the view to show only entities with active, unclosed deliverables. Open work is never date-filtered—a four-month-old dropped task stays visible until resolved.
-- **Co-occurrence Mapping**: Automatically records which entities appear in the same sections, revealing multi-party relationships (e.g. projects running at specific accounts, joint partner pursuits).
-- **Attention Sorting**: Sort by *Needs attention* (overdue tasks first, then total open work, then longest silence), *Most recent*, *Most open tasks*, *Most activity*, or *Alphabetical*.
+**Portfolio cockpit.** Every entity across every namespace (`#Customer/Amgen`, `#Project/FoldRun`, `#Partner/NVIDIA`) in one live table: recency heat (`●` warm / `◐` cooling / `○` cold), open tasks, overdue deadlines, note count, and top connections. The **⚡ Open work only** toggle instantly hides quiet accounts so you see only entities with active commitments. Sorted by *needs attention* — overdue first, then open work, then longest silence.
 
-### 2. Executive 2x2 Reporting Suite
-Generate structured, C-level 2x2 status reports and executive summaries directly into your vault with one click:
-- **📅 Weekly 2x2** (`Reporting/2x2/weekly/YYYY/YYYY-MM/weekly_2x2_YYYY-MM-DD_to_YYYY-MM-DD.md`): Synthesizes rolling 7-day wins, operational blockers, and week-over-week commitments.
-- **🗓️ Monthly 2x2** (`Reporting/2x2/monthly/YYYY/monthly_2x2_YYYY-MM.md`): Rolling 30-day territory status narrative aligned with Google Cloud **Grad Expectations & Leadership** pillars (*Customer Impact*, *Technical Excellence*, *Leadership & Culture*, *Strategic Thinking*, *Innovation & Problem Solving*).
+**Executive 2x2 reporting.** Generates structured C-level status reports and matrices written directly into your vault with one click:
+- **📅 Weekly 2x2** (`Reporting/2x2/weekly/YYYY/YYYY-MM/`): 7-day operational wins, blockers, and week-over-week commitments.
+- **🗓️ Monthly 2x2** (`Reporting/2x2/monthly/YYYY/`): 30-day territory narrative aligned with Google Cloud **Grad Expectations & Leadership** pillars (*Customer Impact*, *Technical Excellence*, *Leadership & Culture*, *Strategic Thinking*, *Innovation & Problem Solving*).
 - **📊 Customer & Project 2x2s** (`Reporting/2x2/customer/<Account>/` and `Reporting/2x2/project/<Project>/`): Deep dives into account wins, commercial ramps, technical blockers, and next steps with date-range filenames (`2x2 - Customer_<Account> - YYYY-MM-DD_to_YYYY-MM-DD.md`).
-- **🛡️ Risk & Opportunity 2x2 Matrix**: Probability vs. Impact quadrant analysis for proactive contingency planning.
+- **🛡️ Risk & Opportunity 2x2 Matrix**: Impact vs. Probability quadrant analysis with concrete mitigations.
 
-### 3. Natural Language AI Action Command Bar
-Execute safe, intelligent vault operations from the central command bar or row-level action inputs:
-- **Tag Migrations**: *"Change #Project/Venter to #Project/gcp-dde"* — reclassifies tags across all notes in the vault atomically.
-- **Task Hygiene**: *"Clean up stale tasks for Amgen older than 60 days"* — scans and identifies unclosed tasks for cancellation.
-- **Meeting Follow-ups**: *"Add a follow-up task for Commure to review BigQuery architecture next Tuesday"*.
-- **Visual Safety Diffs**: AI commands generate a visual proposal and diff first. **Nothing is written to your vault until you review and click Confirm & Apply**.
+**Natural-language AI action engine.** A central command bar at the top of the cockpit plus row-level quick inputs. Type plain-English instructions — *"Change #Project/Venter to #Project/gcp-dde across the vault"*, *"Clean up stale tasks for Amgen older than 60 days"*, or *"Brief me on Commure"*. Gemini proposes changes as a visual diff first; **nothing is written to your vault until you review and confirm**.
 
-### 4. Ground-Truth AI Engine
-- **Powered by Gemini**: Default model is `gemini-3.8-flash` configured with thinking budget (`2048`), low temperature (`0.1`), and strict ground-truth prompt guardrails.
-- **Zero Hallucinations**: Constrained exclusively to verifiable facts, dates, and deliverables in your notes.
-- **Offline / Keyless Mode**: Without an API key, all core indexing, filtering, task ticking, and connection tracking work fully. The **Copy context** button puts the assembled markdown notes on your clipboard to paste into Claude, ChatGPT, or any other assistant.
+**Entity view.** Open commitments sorted overdue-first, clickable straight to the source note and line; recent notes rendered as live markdown; co-occurring entities; and a direct link to the entity's own hub page (`Customers/Amgen.md`) when one exists.
 
-### 5. Editable Markdown Prompts on Disk
-Prompt templates are saved as editable markdown files directly inside your vault at `.obsidian/plugins/rolodex/prompts/`:
-- `customer-2x2.md`
-- `project-2x2.md`
-- `weekly-2x2.md`
-- `monthly-2x2.md`
-- `briefing.md`
-- `risk-2x2.md`
+**Ground-truth AI briefings.** Assembles the entity's open work, recent completions, and notes, then asks Gemini for a structured five-part brief. Powered by `gemini-3.8-flash` with a 2048 thinking budget and zero-hallucination guardrails strictly bounded by your vault notes. Without an API key, *Copy context* puts the exact assembled markdown on your clipboard for any assistant.
 
-Customize the prompts directly in Obsidian to fit your team's executive review formats, or restore defaults anytime via Settings.
+**Editable prompt templates on disk.** Prompt templates live as standard markdown files directly inside your vault at `.obsidian/plugins/rolodex/prompts/` (`customer-2x2.md`, `project-2x2.md`, `weekly-2x2.md`, `monthly-2x2.md`, `briefing.md`, `risk-2x2.md`). Edit them in Obsidian to match your team's executive review format, or restore defaults anytime via Settings.
 
-### 6. Entity Deep-Dive & Safe Task Ticking
-- Click any entity to drill into its dedicated view: open commitments sorted overdue-first, notes rendered as markdown, connected entities, and a direct link to its canonical note (e.g. `Customers/Amgen.md`).
-- **Atomic Task Ticking**: Clicking a checkbox rewrites the line in its source file to `[x]` and appends `✅ YYYY-MM-DD` via Obsidian's `app.vault.process()`. If the note was modified underneath it, the write is refused and the index automatically rescans.
+**Connections.** Rolodex records which entities share a section, so projects show the accounts they touch and accounts show active workstreams. In a real CE vault, over 95% of project-tagged notes also carry customer tags — relationships that were previously buried in prose.
+
+**Task metadata & atomic ticking.** Full [Tasks plugin](https://publish.obsidian.md/tasks/) emoji support: `📅` due, `⏳` scheduled, `🛫` start, `➕` created, `✅` done, `❌` cancelled, and `🔺⏫🔼🔽⏬` priority. Clicking a checkbox rewrites only that exact line via Obsidian's `app.vault.process()` to `[x]` and appends `✅ YYYY-MM-DD`. If the note was modified underneath it, the write is refused and the index rescans. Open work is deliberately **never** date-filtered — an unclosed task from four months ago remains front and center.
 
 ---
 
