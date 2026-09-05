@@ -220,9 +220,13 @@ export async function saveTwoByTwoReport(
 
   if (scope === 'customer') {
     const safeName = nameOrRange.replace(/[\\/:*?"<>|]/g, '');
+    const entityFolder = safeName.replace(/_Risk$/, '');
+    folder = `Reporting/2x2/${scope}/${entityFolder}`;
     filename = `2x2 - Customer_${safeName} - ${today}.md`;
   } else if (scope === 'project') {
     const safeName = nameOrRange.replace(/[\\/:*?"<>|]/g, '');
+    const entityFolder = safeName.replace(/_Risk$/, '');
+    folder = `Reporting/2x2/${scope}/${entityFolder}`;
     filename = `2x2 - Project_${safeName} - ${today}.md`;
   } else if (scope === 'weekly') {
     const monthFolder = (to || today).slice(0, 7);
