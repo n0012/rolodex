@@ -145,3 +145,68 @@ export function daysAgoIso(days: number): string {
   d.setDate(d.getDate() - days);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+import type { AiCommandResult, EntityRecord } from './types';
+
+export function tryDeterministicCommand(
+  cmd: string,
+  entities: Map<string, EntityRecord>,
+): AiCommandResult | null {
+  const trimmed = cmd.trim();
+
+  // Pattern: "Change <Entity> from <OldType> to <NewType>" or "Change <Entity> to <NewType>"
+  const changeMatch1 = /^(?:change|reclassify|rename|move)\s+(?:#?([a-zA-Z0-9_-]+)\/)?([a-zA-Z0-9_-]+)\s+(?:from\s+([a-zA-Z0-9_-]+)\s+)?to\s+#?([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]+))?$/i.exec(trimmed);
+  if (changeMatch1) {
+    const targetName = changeMatch1[2];
+    const explicitOldType = changeMatch1[1] || changeMatch1[3];
+    const targetNewType = changeMatch1[4];
+    const targetNewName = changeMatch1[5] || targetName;
+
+    let oldType = explicitOldType;
+    if (!oldType) {
+      for (const e of entities.values()) {
+        if (e.name.toLowerCase() === targetName.toLowerCase()) {
+          oldType = e.type;
+          break;
+        }
+      }
+    }
+    oldType = oldType || 'Project';
+
+    return {
+      type: 'reclassify',
+      title: `Reclassify #${oldType}/${targetName} ➔ #${targetNewType}/${targetNewName}`,
+      reclassify: {
+        oldType,
+        oldName: targetName,
+        newType: targetNewType,
+        newName: targetNewName,
+      },
+    };
+  }
+
+  // Pattern: "Reclassify <Entity> as <NewType>"
+  const changeMatch2 = /^(?:reclassify|classify|mark)\s+([a-zA-Z0-9_-]+)\s+as\s+(?:a\s+|an\s+)?([a-zA-Z0-9_-]+)$/i.exec(trimmed);
+  if (changeMatch2) {
+    const targetName = changeMatch2[1];
+    const targetNewType = changeMatch2[2];
+    let oldType = 'Project';
+    for (const e of entities.values()) {
+      if (e.name.toLowerCase() === targetName.toLowerCase()) {
+        oldType = e.type;
+        break;
+      }
+    }
+    return {
+      type: 'reclassify',
+      title: `Reclassify #${oldType}/${targetName} ➔ #${targetNewType}/${targetName}`,
+      reclassify: {
+        oldType,
+        oldName: targetName,
+        newType: targetNewType,
+      },
+    };
+  }
+
+  return null;
+}

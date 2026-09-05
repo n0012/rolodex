@@ -129,3 +129,28 @@ export interface PortfolioRow {
   related: string[];
   notePath?: string;
 }
+
+export interface TaskUpdateProposal {
+  path: string;
+  line: number;
+  currentText: string;
+  newStatus: 'done' | 'cancelled' | 'open';
+  reason?: string;
+}
+
+export interface AiCommandResult {
+  type: 'reclassify' | 'task_updates' | 'draft' | 'message';
+  title: string;
+  reclassify?: {
+    oldType: string;
+    oldName: string;
+    newType: string;
+    newName?: string;
+  };
+  taskUpdates?: TaskUpdateProposal[];
+  draft?: {
+    heading?: string;
+    content: string;
+  };
+  message?: string;
+}

@@ -120,8 +120,26 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
               alsoHere: keys.filter(k => k !== key),
             });
           }
-          for (const other of keys) if (other !== key) {
+          // Relate only across different types (never Customer <-> Customer)
+          for (const other of keys) {
+            if (other === key) continue;
+            const otherTag = sectionTags.get(other);
+            if (otherTag && otherTag.type.toLowerCase() === t.type.toLowerCase()) continue;
             e.related.set(other, (e.related.get(other) ?? 0) + 1);
+          }
+
+          // Extract [[wikilinks]] in the section (stakeholders, partners, projects)
+          if (text) {
+            const WIKILINK_RE = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
+            let wMatch: RegExpExecArray | null;
+            while ((wMatch = WIKILINK_RE.exec(text)) !== null) {
+              const target = wMatch[1].trim();
+              if (target && !/^\d{4}-\d{2}/.test(target) && target.toLowerCase() !== t.name.toLowerCase()) {
+                const wlKey = `link/${target.toLowerCase()}`;
+                vote(nameVotes, wlKey, target);
+                e.related.set(wlKey, (e.related.get(wlKey) ?? 0) + 1);
+              }
+            }
           }
         }
       }

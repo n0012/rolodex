@@ -1,17 +1,12 @@
-/** Gemini summaries. Uses Obsidian's requestUrl so this works on mobile. */
+/** Gemini summaries and AI command engine. Uses Obsidian's requestUrl. */
 
 import { requestUrl } from 'obsidian';
 import { isOverdue, openTasks, sortTasks } from './select';
-import { todayIso } from './parse';
-import type { EntityRecord } from './types';
+import { todayIso, tryDeterministicCommand } from './parse';
+import type { AiCommandResult, EntityRecord, EntityTask } from './types';
 import type { Window } from './select';
+import type { TaskUpdateProposal } from './actions';
 
-/**
- * The plugin this replaces used Node's `https` module, which does not exist on
- * iOS or Android — so AI summaries threw on the phone while the manifest
- * advertised isDesktopOnly: false. requestUrl is the cross-platform path and
- * also sidesteps CORS.
- */
 export async function summarize(
   apiKey: string,
   model: string,
@@ -23,8 +18,6 @@ export async function summarize(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Header, not ?key= in the query string: a URL travels into logs and
-      // error messages far more readily than a header does.
       'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({ contents: [{ parts: [{ text: `${prompt}\n\n---\n\n${context}` }] }] }),
@@ -49,10 +42,117 @@ export async function summarize(
 }
 
 /**
- * The note text handed to the model. Budgeted rather than truncated at a fixed
- * count: the old version always sent exactly 20 sections, which overflowed on
- * chatty accounts and wasted the window on quiet ones.
+ * Executes a natural language command via Gemini or deterministic parser.
  */
+export async function executeAiCommand(
+  apiKey: string,
+  model: string,
+  command: string,
+  currentEntity: EntityRecord | null,
+  allEntities: Map<string, EntityRecord>,
+): Promise<AiCommandResult> {
+  // Try instant deterministic parsing first
+  const fast = tryDeterministicCommand(command, allEntities);
+  if (fast) return fast;
+
+  if (!apiKey) {
+    throw new Error('Please configure a Gemini API key in Rolodex settings for natural language AI actions.');
+  }
+
+  // Build context for AI execution
+  const today = todayIso();
+  let contextBrief = `Today's Date: ${today}\n`;
+  if (currentEntity) {
+    contextBrief += `Active Entity: ${currentEntity.type}/${currentEntity.name}\n`;
+    contextBrief += `Open Tasks:\n${currentEntity.tasks.filter(t => t.status === 'open').map(t => `- [line ${t.line} in ${t.path}] ${t.text} (${t.due ? `due ${t.due}` : ''})`).join('\n')}\n`;
+  }
+
+  const systemInstruction = `You are the executive AI assistant inside an Obsidian CRM plugin for a Google Cloud Customer Engineer.
+The user gave this command: "${command}"
+
+Analyze the intent and return ONLY a valid JSON object matching one of these forms:
+
+1. If the user wants to reclassify an entity tag (e.g. from Project to Conference):
+{
+  "type": "reclassify",
+  "title": "Reclassify description",
+  "reclassify": {
+    "oldType": "Project",
+    "oldName": "EntityName",
+    "newType": "Conference"
+  }
+}
+
+2. If the user wants to clean up, cancel, or mark tasks done:
+{
+  "type": "task_updates",
+  "title": "Task cleanup proposal description",
+  "taskUpdates": [
+    {
+      "path": "path/to/file.md",
+      "line": 123,
+      "currentText": "exact line text",
+      "newStatus": "cancelled", // or "done"
+      "reason": "older than 30d"
+    }
+  ]
+}
+
+3. If the user wants to draft an email, brief, or note:
+{
+  "type": "draft",
+  "title": "Subject or Heading",
+  "draft": {
+    "heading": "Briefing / Subject",
+    "content": "Full markdown content"
+  }
+}
+
+4. If general query or clarification:
+{
+  "type": "message",
+  "title": "AI Response",
+  "message": "Answer or clarification"
+}
+
+Return ONLY raw JSON, no markdown codeblocks, no formatting.`;
+
+  const resp = await requestUrl({
+    url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `${systemInstruction}\n\nContext:\n${contextBrief}` }] }],
+    }),
+    throw: false,
+  });
+
+  if (resp.status >= 400) {
+    const detail = (resp.json as { error?: { message?: string } })?.error?.message;
+    throw new Error(detail ?? `Gemini returned ${resp.status}`);
+  }
+
+  const data = resp.json as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const rawText = data.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('').trim();
+  if (!rawText) throw new Error('No response from AI.');
+
+  const cleanJson = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    return JSON.parse(cleanJson) as AiCommandResult;
+  } catch (err) {
+    return {
+      type: 'draft',
+      title: 'AI Output',
+      draft: { content: rawText },
+    };
+  }
+}
+
 export function buildContext(
   e: EntityRecord,
   w: Window,
@@ -60,6 +160,7 @@ export function buildContext(
   charBudget = 60_000,
 ): string {
   const nameOf = (key: string) => {
+    if (key.startsWith('link/')) return `[[${key.slice(5)}]]`;
     const other = all.get(key);
     return other ? `${other.type}/${other.name}` : key;
   };
@@ -71,9 +172,17 @@ export function buildContext(
   parts.push(`Window shown: ${w.from} to ${w.to} (today is ${today})`);
   parts.push(`First seen ${e.firstSeen || 'unknown'}, last seen ${e.lastSeen || 'unknown'}, tagged in ${e.noteCount} notes.`);
 
-  const related = [...e.related.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  // Filter out same-type connections
+  const related = [...e.related.entries()]
+    .filter(([k]) => {
+      const other = all.get(k);
+      return !other || other.type.toLowerCase() !== e.type.toLowerCase();
+    })
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+
   if (related.length) {
-    parts.push(`Frequently co-occurs with: ${related.map(([k, n]) => `${nameOf(k)} (${n})`).join(', ')}`);
+    parts.push(`Connected stakeholders, partners & projects: ${related.map(([k, n]) => `${nameOf(k)} (${n})`).join(', ')}`);
   }
 
   const open = sortTasks(openTasks(e), today);
@@ -98,15 +207,20 @@ export function buildContext(
 
   parts.push('\n## Notes, newest first');
   let used = parts.join('\n').length;
-  let included = 0;
-  for (const a of e.activities.filter(x => !x.date || (x.date >= w.from && x.date <= w.to))) {
-    const block = `\n### ${a.date} — ${a.heading}\n${a.text}`;
-    if (used + block.length > charBudget) break;
+
+  for (const a of e.activities) {
+    if (a.date && a.date < w.from) continue;
+    const block = [
+      `\n### ${a.date || 'Undated'} — ${a.file}${a.heading ? ` > ${a.heading}` : ''}`,
+      a.text,
+    ].join('\n');
+    if (used + block.length > charBudget) {
+      parts.push('\n… (older notes in window omitted for length)');
+      break;
+    }
     parts.push(block);
     used += block.length;
-    included++;
   }
-  if (!included) parts.push('_No notes in this window._');
 
   return parts.join('\n');
 }

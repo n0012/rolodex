@@ -245,3 +245,157 @@
   border-radius: var(--radius-m);
   background: var(--background-secondary);
 }
+
+/* AI Action Command Bar */
+.rolodex-action-wrap {
+  margin: 0.5rem 0 0.8rem;
+}
+
+.rolodex-action-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.rolodex-action-input {
+  flex: 1;
+  background: var(--background-primary-alt);
+  border: 1px solid var(--interactive-accent);
+  border-radius: var(--radius-m);
+  padding: 0.4rem 0.6rem;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.rolodex-action-input:focus {
+  border-color: var(--interactive-accent-hover);
+  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+.rolodex-action-btn {
+  font-weight: 600;
+  padding: 0.4rem 0.8rem !important;
+}
+
+/* Proposal & Diff Card */
+.rolodex-proposal-card {
+  margin-top: 0.5rem;
+  border: 1px solid var(--interactive-accent);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  padding: 0.6rem 0.8rem;
+  box-shadow: var(--shadow-s);
+}
+
+.rolodex-proposal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+.rolodex-proposal-title {
+  color: var(--interactive-accent);
+}
+
+.rolodex-proposal-body {
+  margin-bottom: 0.5rem;
+  font-size: var(--font-ui-small);
+}
+
+.rolodex-proposal-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.3rem 0;
+}
+
+.rolodex-proposal-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+
+.rolodex-badge {
+  font-size: calc(var(--font-ui-smaller) * 0.85);
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.rolodex-badge.is-done {
+  background: var(--color-green);
+  color: #fff;
+}
+
+.rolodex-badge.is-cancel {
+  background: var(--color-red);
+  color: #fff;
+}
+
+/* Health Dot */
+.rolodex-health-cell {
+  width: 1.5rem;
+  text-align: center;
+}
+
+.rolodex-health-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.rolodex-health-dot.is-active {
+  background: var(--color-green, #4caf50);
+  box-shadow: 0 0 6px var(--color-green, #4caf50);
+}
+
+.rolodex-health-dot.is-warm {
+  background: var(--color-yellow, #ffc107);
+}
+
+.rolodex-health-dot.is-quiet {
+  background: var(--color-red, #f44336);
+}
+
+/* Executive Briefing Card */
+.rolodex-brief-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-primary-alt);
+  padding: 0.8rem 1rem;
+  margin: 0.8rem 0;
+}
+
+.rolodex-brief-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.rolodex-brief-title {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+}
+
+.rolodex-brief-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.rolodex-brief-body {
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+
+.rolodex-type-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.5rem;
+}
