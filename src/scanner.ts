@@ -332,6 +332,12 @@ function extractEntityChunk(fullText: string, targetKey: string): string {
 
   for (const e of entities.values()) {
     e.activities.sort((a, b) => b.date.localeCompare(a.date));
+    // True Last Touch: anchor to the most recent real interaction/activity
+    // so automated proposals, inbox task noise, or morning brief mentions
+    // do not falsely make a quiet account look active.
+    if (e.activities.length > 0) {
+      e.lastSeen = e.activities[0].date;
+    }
   }
 
   return { entities, typesSeen, scannedFiles: files.length, builtAt: Date.now() };
