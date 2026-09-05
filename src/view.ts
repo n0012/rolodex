@@ -1196,20 +1196,83 @@ export class RolodexView extends ItemView {
     if (!e.activities.length) return;
 
     const sec = root.createDiv({ cls: 'rolodex-section' });
-    sec.createEl('h4', { text: 'Recent Activity' });
+    const headerRow = sec.createDiv({ cls: 'rolodex-section-header-row' });
+    headerRow.createEl('h4', { text: `Recent Activity (${e.activities.length})` });
 
     for (const a of e.activities.slice(0, 15)) {
-      const item = sec.createDiv({ cls: 'rolodex-activity-item' });
-      const meta = item.createDiv({ cls: 'rolodex-activity-meta' });
-      meta.createSpan({ text: a.date || 'Undated' });
-      const link = meta.createEl('a', { text: a.file });
-      link.addEventListener('click', (ev) => {
+      const card = sec.createDiv({ cls: 'rolodex-activity-card' });
+
+      // Meta header bar
+      const meta = card.createDiv({ cls: 'rolodex-activity-meta' });
+      if (a.date) {
+        meta.createSpan({ text: a.date, cls: 'rolodex-activity-date' });
+      }
+
+      const fileLink = meta.createEl('a', {
+        text: `📄 ${a.file}`,
+        cls: 'rolodex-activity-file',
+      });
+      fileLink.addEventListener('click', (ev) => {
         ev.preventDefault();
         void this.app.workspace.openLinkText(a.path, '', false);
       });
-      if (a.heading) meta.createSpan({ text: ` > ${a.heading}`, cls: 'rolodex-muted' });
 
-      item.createDiv({ text: a.text, cls: 'rolodex-activity-text' });
+      if (a.heading) {
+        meta.createSpan({
+          text: `› ${a.heading}`,
+          cls: 'rolodex-activity-heading',
+          attr: { title: a.heading },
+        });
+      }
+
+      if (a.alsoHere && a.alsoHere.length > 0) {
+        const chips = meta.createDiv({ cls: 'rolodex-activity-chips' });
+        for (const other of a.alsoHere.slice(0, 3)) {
+          chips.createSpan({
+            text: this.nameOf(other),
+            cls: 'rolodex-chip is-mini',
+          });
+        }
+      }
+
+      // Clean raw text: strip leading heading line if it mirrors the heading or tags
+      let cleaned = a.text.trim();
+      const lines = cleaned.split('\n');
+      if (lines.length > 1 && /^#{1,6}\s+/.test(lines[0])) {
+        cleaned = lines.slice(1).join('\n').trim();
+      }
+
+      const isLong = cleaned.split('\n').length > 5 || cleaned.length > 300;
+      const body = card.createDiv({
+        cls: isLong ? 'rolodex-activity-body is-clamped' : 'rolodex-activity-body',
+      });
+
+      MarkdownRenderer.render(
+        this.app,
+        cleaned || '*(Section contains no additional text)*',
+        body,
+        a.path,
+        this.plugin,
+      );
+
+      if (isLong) {
+        const foot = card.createDiv({ cls: 'rolodex-activity-foot' });
+        const toggle = foot.createEl('button', {
+          text: 'Show full note ▾',
+          cls: 'rolodex-activity-toggle',
+        });
+        let expanded = false;
+        toggle.addEventListener('click', () => {
+          expanded = !expanded;
+          if (expanded) {
+            body.removeClass('is-clamped');
+            toggle.setText('Show less ▴');
+          } else {
+            body.addClass('is-clamped');
+            toggle.setText('Show full note ▾');
+          }
+        });
+      }
     }
   }
 

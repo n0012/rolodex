@@ -488,4 +488,153 @@
   font-weight: 600;
 }
 
+/* Recent Activity Cards */
+.rolodex-section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 1.2rem 0 0.5rem;
+}
+
+.rolodex-section-header-row h4 {
+  margin: 0;
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.rolodex-activity-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.75rem;
+  background: var(--background-secondary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rolodex-activity-card:hover {
+  border-color: var(--interactive-accent);
+  box-shadow: var(--shadow-s);
+}
+
+.rolodex-activity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+}
+
+.rolodex-activity-date {
+  font-weight: 600;
+  font-size: calc(var(--font-ui-smaller) * 0.95);
+  color: var(--text-normal);
+  background: var(--background-primary-alt);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+  letter-spacing: 0.02em;
+}
+
+.rolodex-activity-file {
+  color: var(--interactive-accent);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rolodex-activity-file:hover {
+  text-decoration: underline;
+  color: var(--interactive-accent-hover);
+}
+
+.rolodex-activity-heading {
+  color: var(--text-muted);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+
+.rolodex-activity-chips {
+  margin-left: auto;
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.rolodex-activity-body {
+  font-size: var(--font-ui-small);
+  line-height: 1.55;
+  color: var(--text-normal);
+  overflow-wrap: break-word;
+}
+
+.rolodex-activity-body.is-clamped {
+  max-height: 125px;
+  overflow: hidden;
+  position: relative;
+  -webkit-mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+}
+
+.rolodex-activity-foot {
+  margin-top: 0.35rem;
+}
+
+.rolodex-activity-toggle {
+  background: transparent;
+  border: none;
+  color: var(--interactive-accent);
+  font-size: var(--font-ui-smaller);
+  font-weight: 500;
+  padding: 0.1rem 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rolodex-activity-toggle:hover {
+  text-decoration: underline;
+  color: var(--interactive-accent-hover);
+}
+
+.rolodex-activity-body p {
+  margin: 0.35rem 0;
+}
+
+.rolodex-activity-body ul,
+.rolodex-activity-body ol {
+  margin: 0.35rem 0 0.35rem 1.2rem;
+  padding: 0;
+}
+
+.rolodex-activity-body li {
+  margin-bottom: 0.2rem;
+}
+
+.rolodex-activity-body h1,
+.rolodex-activity-body h2,
+.rolodex-activity-body h3,
+.rolodex-activity-body h4 {
+  margin: 0.5rem 0 0.3rem;
+  font-size: 1.05em;
+  color: var(--text-accent);
+}
+
+.rolodex-activity-body blockquote {
+  margin: 0.4rem 0;
+  padding-left: 0.8rem;
+  border-left: 3px solid var(--interactive-accent);
+  color: var(--text-muted);
+}
+
+
 
