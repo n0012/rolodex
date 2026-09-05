@@ -175,8 +175,8 @@ describe('computeGraphLayout', () => {
       expect(node.x).toBeLessThan(560);
       expect(node.y).toBeGreaterThan(20);
       expect(node.y).toBeLessThan(250);
-      expect(node.radius).toBeGreaterThanOrEqual(12);
-      expect(node.radius).toBeLessThanOrEqual(20);
+      expect(node.radius).toBeGreaterThanOrEqual(8);
+      expect(node.radius).toBeLessThanOrEqual(15);
     }
   });
 });

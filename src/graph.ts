@@ -215,8 +215,8 @@ export function getTypeColors(type: 'Customer' | 'Partner' | 'Project' | 'Stakeh
  */
 export function computeGraphLayout(
   nodes: ConnectedNode[],
-  width = 600,
-  height = 270
+  width = 520,
+  height = 180
 ): {
   center: { x: number; y: number; radius: number };
   nodes: GraphLayoutNode[];
@@ -225,20 +225,20 @@ export function computeGraphLayout(
   const cy = Math.round(height / 2);
   const N = nodes.length;
 
-  const rx = Math.min(210, width * 0.36);
-  const ry = Math.min(84, height * 0.32);
+  const rx = Math.min(185, width * 0.38);
+  const ry = Math.min(56, height * 0.32);
 
   const layoutNodes: GraphLayoutNode[] = nodes.map((node, i) => {
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / N;
     // Stagger radius slightly if more than 5 nodes to avoid horizontal/vertical label crowding
-    const stagger = N > 5 && i % 2 === 1 ? 0.88 : 1.04;
+    const stagger = N > 5 && i % 2 === 1 ? 0.86 : 1.04;
     const x = Math.round(cx + rx * stagger * Math.cos(angle));
     const y = Math.round(cy + ry * stagger * Math.sin(angle));
-    const radius = Math.min(19, Math.max(12, 11 + Math.round(Math.sqrt(node.count) * 2)));
+    const radius = Math.min(13, Math.max(8, 7 + Math.round(Math.sqrt(node.count) * 1.5)));
 
     const { color, borderColor } = getTypeColors(node.type);
-    const labelY = y < cy ? y - radius - 6 : y + radius + 14;
-    const truncatedName = node.name.length > 15 ? node.name.slice(0, 14) + '…' : node.name;
+    const labelY = y < cy ? y - radius - 4 : y + radius + 11;
+    const truncatedName = node.name.length > 13 ? node.name.slice(0, 12) + '…' : node.name;
 
     return {
       ...node,
@@ -254,7 +254,7 @@ export function computeGraphLayout(
   });
 
   return {
-    center: { x: cx, y: cy, radius: 25 },
+    center: { x: cx, y: cy, radius: 17 },
     nodes: layoutNodes,
   };
 }
@@ -361,8 +361,8 @@ function renderSvgGraphView(
   const tooltip = wrapper.createDiv({ cls: 'rolodex-graph-tooltip' });
   tooltip.style.display = 'none';
 
-  const width = 600;
-  const height = 270;
+  const width = 520;
+  const height = 180;
   const layout = computeGraphLayout(nodes, width, height);
 
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -381,7 +381,7 @@ function renderSvgGraphView(
   filter.setAttribute('height', '160%');
 
   const blur = document.createElementNS(svgNS, 'feGaussianBlur');
-  blur.setAttribute('stdDeviation', '3.5');
+  blur.setAttribute('stdDeviation', '2.5');
   blur.setAttribute('result', 'blur');
   filter.appendChild(blur);
 
@@ -410,7 +410,7 @@ function renderSvgGraphView(
     line.setAttribute('x2', String(node.x));
     line.setAttribute('y2', String(node.y));
     line.setAttribute('stroke', node.borderColor);
-    line.setAttribute('stroke-width', String(1.6 + Math.min(3, Math.sqrt(node.count))));
+    line.setAttribute('stroke-width', String(1.2 + Math.min(2.2, Math.sqrt(node.count) * 0.6)));
     line.setAttribute('stroke-opacity', '0.35');
     line.setAttribute('class', 'rolodex-graph-edge');
     line.setAttribute('data-key', node.key);
@@ -434,10 +434,10 @@ function renderSvgGraphView(
   const hubHalo = document.createElementNS(svgNS, 'circle');
   hubHalo.setAttribute('cx', String(layout.center.x));
   hubHalo.setAttribute('cy', String(layout.center.y));
-  hubHalo.setAttribute('r', '33');
+  hubHalo.setAttribute('r', '23');
   hubHalo.setAttribute('class', 'rolodex-hub-halo');
   hubHalo.setAttribute('stroke', hubBorder);
-  hubHalo.setAttribute('stroke-width', '1.5');
+  hubHalo.setAttribute('stroke-width', '1.2');
   hubG.appendChild(hubHalo);
 
   const hubCircle = document.createElementNS(svgNS, 'circle');
@@ -446,13 +446,13 @@ function renderSvgGraphView(
   hubCircle.setAttribute('r', String(layout.center.radius));
   hubCircle.setAttribute('fill', hubColor);
   hubCircle.setAttribute('stroke', hubBorder);
-  hubCircle.setAttribute('stroke-width', '2.5');
+  hubCircle.setAttribute('stroke-width', '2');
   hubCircle.setAttribute('class', 'rolodex-hub-circle');
   hubG.appendChild(hubCircle);
 
   const hubText = document.createElementNS(svgNS, 'text');
   hubText.setAttribute('x', String(layout.center.x));
-  hubText.setAttribute('y', String(layout.center.y + 6));
+  hubText.setAttribute('y', String(layout.center.y + 4));
   hubText.setAttribute('text-anchor', 'middle');
   hubText.setAttribute('class', 'rolodex-hub-icon');
   hubText.textContent = hubIcon;
@@ -460,7 +460,7 @@ function renderSvgGraphView(
 
   const hubLabel = document.createElementNS(svgNS, 'text');
   hubLabel.setAttribute('x', String(layout.center.x));
-  hubLabel.setAttribute('y', String(layout.center.y + 42));
+  hubLabel.setAttribute('y', String(layout.center.y + 29));
   hubLabel.setAttribute('text-anchor', 'middle');
   hubLabel.setAttribute('class', 'rolodex-hub-label');
   hubLabel.textContent = entity.name;
@@ -516,13 +516,13 @@ function renderSvgGraphView(
     circle.setAttribute('r', String(node.radius));
     circle.setAttribute('fill', node.color);
     circle.setAttribute('stroke', node.borderColor);
-    circle.setAttribute('stroke-width', '2');
+    circle.setAttribute('stroke-width', '1.5');
     circle.setAttribute('class', 'rolodex-node-circle');
     g.appendChild(circle);
 
     const countText = document.createElementNS(svgNS, 'text');
     countText.setAttribute('x', String(node.x));
-    countText.setAttribute('y', String(node.y + 4));
+    countText.setAttribute('y', String(node.y + 3));
     countText.setAttribute('text-anchor', 'middle');
     countText.setAttribute('class', 'rolodex-node-count');
     countText.textContent = String(node.count);
