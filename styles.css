@@ -399,3 +399,46 @@
   gap: 0.3rem;
   margin-left: 0.5rem;
 }
+
+/* Row-level Quick Actions */
+.rolodex-act-cell {
+  min-width: 250px;
+}
+
+.rolodex-row-action-wrap {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.rolodex-row-action-input {
+  flex: 1;
+  min-width: 130px;
+  max-width: 220px;
+  padding: 0.2rem 0.45rem !important;
+  font-size: var(--font-ui-smaller) !important;
+  border-radius: var(--radius-s);
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+.rolodex-row-action-input:focus {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+  outline: none;
+}
+
+.rolodex-row-btn {
+  padding: 0.2rem 0.45rem !important;
+  font-size: var(--font-ui-smaller) !important;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rolodex-row-proposal-tr td {
+  background: var(--background-secondary-alt);
+  padding: 0.6rem 1rem !important;
+  border-bottom: 2px solid var(--interactive-accent);
+}
+

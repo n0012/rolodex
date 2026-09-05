@@ -215,7 +215,10 @@ export class RolodexView extends ItemView {
     head.createSpan({ text: res.title || 'AI Action Proposal', cls: 'rolodex-proposal-title' });
 
     const closeBtn = head.createEl('button', { text: '✕', cls: 'rolodex-chip is-mini' });
-    closeBtn.addEventListener('click', () => host.empty());
+    closeBtn.addEventListener('click', () => {
+      host.closest('tr.rolodex-row-proposal-tr')?.remove();
+      host.empty();
+    });
 
     // 1. Reclassify Tag Proposal
     if (res.type === 'reclassify' && res.reclassify) {
@@ -500,12 +503,95 @@ export class RolodexView extends ItemView {
       });
     }
 
-    // Quick Action (Brief Me)
+    // Quick Action (Inline Ask AI input + Execute + Brief)
     const actCell = tr.createEl('td', { cls: 'rolodex-act-cell' });
-    const briefBtn = actCell.createEl('button', {
-      text: '🧠 Brief Me',
-      cls: 'rolodex-chip is-mini is-cta',
+    const actWrap = actCell.createDiv({ cls: 'rolodex-row-action-wrap' });
+
+    const rowInput = actWrap.createEl('input', {
+      type: 'text',
+      cls: 'rolodex-row-action-input',
+      placeholder: `Ask AI for ${r.name}…`,
     });
+
+    const rowBtn = actWrap.createEl('button', {
+      text: '⚡',
+      cls: 'rolodex-chip is-mini is-cta rolodex-row-btn',
+      attr: { title: `Run AI action for ${r.name} (e.g. "tag is wrong, it's a conference")` },
+    });
+
+    const briefBtn = actWrap.createEl('button', {
+      text: '🧠',
+      cls: 'rolodex-chip is-mini rolodex-row-btn',
+      attr: { title: `Executive Briefing for ${r.name}` },
+    });
+
+    let proposalTr: HTMLElement | null = null;
+
+    const runRowAction = async () => {
+      const val = rowInput.value.trim();
+      if (!val) return;
+
+      if (proposalTr) {
+        proposalTr.remove();
+        proposalTr = null;
+      }
+
+      // If user typed "brief me" or "summarize", trigger briefing directly
+      if (/^(?:brief(?:\s+me)?|summarize|overview)$/i.test(val)) {
+        this.selected = r.key;
+        this.summary = null;
+        this.render();
+        this.triggerBriefing();
+        return;
+      }
+
+      // Insert proposal row right after this tr
+      proposalTr = tbody.createEl('tr', { cls: 'rolodex-row-proposal-tr' });
+      tr.insertAdjacentElement('afterend', proposalTr);
+      const hostTd = proposalTr.createEl('td', { attr: { colspan: '7' } });
+
+      hostTd.createDiv({
+        text: `⏳ Analyzing "${val}" for ${r.name}…`,
+        cls: 'rolodex-muted',
+      });
+      rowBtn.disabled = true;
+
+      try {
+        const idx = this.plugin.index;
+        const currentEntity = idx?.entities.get(r.key) ?? null;
+
+        const res = await executeAiCommand(
+          this.plugin.settings.geminiApiKey,
+          this.plugin.settings.geminiModel,
+          val,
+          currentEntity,
+          idx ? idx.entities : new Map(),
+        );
+
+        hostTd.empty();
+        this.renderActionProposal(hostTd, res, () => {
+          rowInput.value = '';
+          if (proposalTr) {
+            proposalTr.remove();
+            proposalTr = null;
+          }
+        });
+      } catch (err: any) {
+        hostTd.empty();
+        hostTd.createDiv({
+          text: `⚠️ Error: ${err.message || String(err)}`,
+          cls: 'rolodex-error',
+        });
+      } finally {
+        rowBtn.disabled = false;
+      }
+    };
+
+    rowBtn.addEventListener('click', runRowAction);
+    rowInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runRowAction();
+    });
+
     briefBtn.addEventListener('click', async () => {
       this.selected = r.key;
       this.summary = null;

@@ -52,7 +52,7 @@ export async function executeAiCommand(
   allEntities: Map<string, EntityRecord>,
 ): Promise<AiCommandResult> {
   // Try instant deterministic parsing first
-  const fast = tryDeterministicCommand(command, allEntities);
+  const fast = tryDeterministicCommand(command, allEntities, currentEntity);
   if (fast) return fast;
 
   if (!apiKey) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { noteDate, parseTags, parseTaskLine, parseTaskMeta, tagKey } from '../src/parse';
+import { noteDate, parseTags, parseTaskLine, parseTaskMeta, tagKey, tryDeterministicCommand } from '../src/parse';
+import type { EntityRecord } from '../src/types';
 
 describe('parseTags', () => {
   const keys = (text: string) => parseTags(text).map(t => tagKey(t.type, t.name));
@@ -94,3 +95,103 @@ describe('noteDate', () => {
     expect(noteDate('Amgen')).toBe('');
   });
 });
+
+describe('tryDeterministicCommand', () => {
+  const entities = new Map<string, EntityRecord>();
+  entities.set('project/imts', {
+    name: 'IMTS',
+    type: 'Project',
+    key: 'project/imts',
+    tasks: [],
+    files: new Set(),
+    dates: [],
+    related: new Set(),
+    hasNote: false,
+  });
+  entities.set('customer/amgen', {
+    name: 'Amgen',
+    type: 'Customer',
+    key: 'customer/amgen',
+    tasks: [],
+    files: new Set(),
+    dates: [],
+    related: new Set(),
+    hasNote: false,
+  });
+
+  it('handles "imts project tag is wrong, it\'s a conference"', () => {
+    const res = tryDeterministicCommand(
+      "imts project tag is wrong, it's a conference",
+      entities,
+    );
+    expect(res).not.toBeNull();
+    expect(res?.type).toBe('reclassify');
+    expect(res?.reclassify?.oldType).toBe('Project');
+    expect(res?.reclassify?.oldName).toBe('IMTS');
+    expect(res?.reclassify?.newType).toBe('Conference');
+  });
+
+  it('handles "imts tag is wrong, it\'s a conference"', () => {
+    const res = tryDeterministicCommand(
+      "imts tag is wrong, it's a conference",
+      entities,
+    );
+    expect(res).not.toBeNull();
+    expect(res?.reclassify?.oldName).toBe('IMTS');
+    expect(res?.reclassify?.oldType).toBe('Project');
+    expect(res?.reclassify?.newType).toBe('Conference');
+  });
+
+  it('handles context entity when typing "tag is wrong, it\'s a conference"', () => {
+    const imts = entities.get('project/imts');
+    const res = tryDeterministicCommand(
+      "tag is wrong, it's a conference",
+      entities,
+      imts,
+    );
+    expect(res).not.toBeNull();
+    expect(res?.reclassify?.oldName).toBe('IMTS');
+    expect(res?.reclassify?.oldType).toBe('Project');
+    expect(res?.reclassify?.newType).toBe('Conference');
+  });
+
+  it('handles "tag is wrong, change to conference" with context entity', () => {
+    const imts = entities.get('project/imts');
+    const res = tryDeterministicCommand(
+      'tag is wrong, change to conference',
+      entities,
+      imts,
+    );
+    expect(res).not.toBeNull();
+    expect(res?.reclassify?.oldName).toBe('IMTS');
+    expect(res?.reclassify?.newType).toBe('Conference');
+  });
+
+  it('handles "imts is a conference not a project"', () => {
+    const res = tryDeterministicCommand(
+      'imts is a conference not a project',
+      entities,
+    );
+    expect(res).not.toBeNull();
+    expect(res?.reclassify?.oldName).toBe('IMTS');
+    expect(res?.reclassify?.oldType).toBe('Project');
+    expect(res?.reclassify?.newType).toBe('Conference');
+  });
+
+  it('handles context entity for "change to conference"', () => {
+    const imts = entities.get('project/imts');
+    const res = tryDeterministicCommand('change to conference', entities, imts);
+    expect(res).not.toBeNull();
+    expect(res?.reclassify?.oldName).toBe('IMTS');
+    expect(res?.reclassify?.newType).toBe('Conference');
+  });
+
+  it('handles "Change IMTS to Conference"', () => {
+    const res = tryDeterministicCommand('Change IMTS to Conference', entities);
+    expect(res).not.toBeNull();
+    expect(res?.reclassify?.oldName).toBe('IMTS');
+    expect(res?.reclassify?.oldType).toBe('Project');
+    expect(res?.reclassify?.newType).toBe('Conference');
+  });
+});
+

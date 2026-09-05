@@ -151,15 +151,159 @@ import type { AiCommandResult, EntityRecord } from './types';
 export function tryDeterministicCommand(
   cmd: string,
   entities: Map<string, EntityRecord>,
+  contextEntity?: EntityRecord | null,
 ): AiCommandResult | null {
-  const trimmed = cmd.trim();
+  const trimmed = cmd.trim().replace(/[.!]+$/, '');
 
-  // Pattern: "Change <Entity> from <OldType> to <NewType>" or "Change <Entity> to <NewType>"
-  const changeMatch1 = /^(?:change|reclassify|rename|move)\s+(?:#?([a-zA-Z0-9_-]+)\/)?([a-zA-Z0-9_-]+)\s+(?:from\s+([a-zA-Z0-9_-]+)\s+)?to\s+#?([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]+))?$/i.exec(trimmed);
+  const formatTypeName = (t: string) => {
+    const clean = t.replace(/^#/, '').trim();
+    if (!clean) return 'Project';
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+  };
+
+  const resolveEntity = (nameCandidate?: string): { name: string; type: string } | null => {
+    if (nameCandidate) {
+      const cleanName = nameCandidate.replace(/^#/, '').trim();
+      for (const e of entities.values()) {
+        if (e.name.toLowerCase() === cleanName.toLowerCase()) {
+          return { name: e.name, type: e.type };
+        }
+      }
+      return { name: cleanName, type: 'Project' };
+    }
+    if (contextEntity) {
+      return { name: contextEntity.name, type: contextEntity.type };
+    }
+    return null;
+  };
+
+  // Pattern 1: "tag is wrong" / "wrong tag"
+  // e.g. "imts project tag is wrong, it's a conference"
+  //      "imts tag is wrong, it's a conference"
+  //      "tag is wrong, it's a conference"
+  //      "tag is wrong, change to conference"
+  //      "tag is wrong, make it a conference"
+  //      "tag is wrong, conference"
+  //      "wrong tag, it's a conference"
+  const tagWrongMatch = /^(?:(?:the\s+)?([a-zA-Z0-9_-]+)(?:\s+([a-zA-Z0-9_-]+))?\s+)?(?:(?:tag|type)\s+is\s+(?:wrong|incorrect)|wrong\s+(?:tag|type))[:,\s]+(?:it(?:'s|\s+is)\s+(?:a\s+|an\s+)?|change\s+to\s+|make\s+it\s+(?:a\s+|an\s+)?|reclassify\s+as\s+|to\s+)?#?([a-zA-Z0-9_-]+)$/i.exec(trimmed);
+  if (tagWrongMatch) {
+    const rawWord1 = tagWrongMatch[1];
+    const rawWord2 = tagWrongMatch[2];
+    const newTypeRaw = tagWrongMatch[3];
+
+    let targetName = '';
+    let oldType = '';
+
+    if (rawWord1 && rawWord2) {
+      targetName = rawWord1;
+      oldType = rawWord2;
+    } else if (rawWord1) {
+      let isEntityName = false;
+      for (const e of entities.values()) {
+        if (e.name.toLowerCase() === rawWord1.toLowerCase()) {
+          isEntityName = true;
+          targetName = e.name;
+          oldType = e.type;
+          break;
+        }
+      }
+      if (!isEntityName) {
+        if (contextEntity) {
+          targetName = contextEntity.name;
+          oldType = rawWord1;
+        } else {
+          targetName = rawWord1;
+          oldType = 'Project';
+        }
+      }
+    } else if (contextEntity) {
+      targetName = contextEntity.name;
+      oldType = contextEntity.type;
+    }
+
+    if (targetName && newTypeRaw) {
+      const resolved = resolveEntity(targetName);
+      const finalName = resolved ? resolved.name : targetName;
+      const finalOldType = formatTypeName(oldType || (resolved ? resolved.type : 'Project'));
+      const finalNewType = formatTypeName(newTypeRaw);
+
+      return {
+        type: 'reclassify',
+        title: `Reclassify #${finalOldType}/${finalName} ➔ #${finalNewType}/${finalName}`,
+        reclassify: {
+          oldType: finalOldType,
+          oldName: finalName,
+          newType: finalNewType,
+          newName: finalName,
+        },
+      };
+    }
+  }
+
+  // Pattern 2: "X is a Y not a Z" / "is a Y not a Z"
+  // e.g. "imts is a conference not a project"
+  //      "this is a conference not a project"
+  //      "is a conference not a project"
+  const notAMatch = /^(?:([a-zA-Z0-9_-]+)\s+)?(?:is\s+(?:a\s+|an\s+)?|should\s+be\s+(?:a\s+|an\s+)?)(#?[a-zA-Z0-9_-]+)[,\s]+(?:and\s+)?not\s+(?:a\s+|an\s+)?(#?[a-zA-Z0-9_-]+)$/i.exec(trimmed);
+  if (notAMatch) {
+    const rawSubject = notAMatch[1];
+    const newTypeRaw = notAMatch[2];
+    const oldTypeRaw = notAMatch[3];
+
+    let targetName = '';
+    if (rawSubject && rawSubject.toLowerCase() !== 'this' && rawSubject.toLowerCase() !== 'it') {
+      targetName = rawSubject;
+    } else if (contextEntity) {
+      targetName = contextEntity.name;
+    }
+
+    if (targetName) {
+      const resolved = resolveEntity(targetName);
+      const finalName = resolved ? resolved.name : targetName;
+      const finalOldType = formatTypeName(oldTypeRaw || (resolved ? resolved.type : 'Project'));
+      const finalNewType = formatTypeName(newTypeRaw);
+
+      return {
+        type: 'reclassify',
+        title: `Reclassify #${finalOldType}/${finalName} ➔ #${finalNewType}/${finalName}`,
+        reclassify: {
+          oldType: finalOldType,
+          oldName: finalName,
+          newType: finalNewType,
+          newName: finalName,
+        },
+      };
+    }
+  }
+
+  // Pattern 3: Context-aware change / switch / reclassify
+  // e.g. "change to conference"
+  //      "make it a conference"
+  //      "reclassify as conference"
+  if (contextEntity) {
+    const contextChange = /^(?:change|switch|make\s+it|reclassify|mark\s+it)(?:\s+(?:to|as))?\s+(?:a\s+|an\s+)?#?([a-zA-Z0-9_-]+)$/i.exec(trimmed);
+    if (contextChange) {
+      const newTypeRaw = contextChange[1];
+      const finalNewType = formatTypeName(newTypeRaw);
+      return {
+        type: 'reclassify',
+        title: `Reclassify #${contextEntity.type}/${contextEntity.name} ➔ #${finalNewType}/${contextEntity.name}`,
+        reclassify: {
+          oldType: contextEntity.type,
+          oldName: contextEntity.name,
+          newType: finalNewType,
+          newName: contextEntity.name,
+        },
+      };
+    }
+  }
+
+  // Pattern 4: "Change <Entity> from <OldType> to <NewType>" or "Change <Entity> to <NewType>"
+  const changeMatch1 = /^(?:change|reclassify|rename|move|switch)\s+(?:#?([a-zA-Z0-9_-]+)\/)?([a-zA-Z0-9_-]+)\s+(?:from\s+([a-zA-Z0-9_-]+)\s+)?to\s+#?([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]+))?$/i.exec(trimmed);
   if (changeMatch1) {
     const targetName = changeMatch1[2];
     const explicitOldType = changeMatch1[1] || changeMatch1[3];
-    const targetNewType = changeMatch1[4];
+    const targetNewType = formatTypeName(changeMatch1[4]);
     const targetNewName = changeMatch1[5] || targetName;
 
     let oldType = explicitOldType;
@@ -171,25 +315,28 @@ export function tryDeterministicCommand(
         }
       }
     }
-    oldType = oldType || 'Project';
+    oldType = formatTypeName(oldType || (contextEntity?.name.toLowerCase() === targetName.toLowerCase() ? contextEntity.type : 'Project'));
+
+    const resolved = resolveEntity(targetName);
+    const finalName = resolved ? resolved.name : targetName;
 
     return {
       type: 'reclassify',
-      title: `Reclassify #${oldType}/${targetName} ➔ #${targetNewType}/${targetNewName}`,
+      title: `Reclassify #${oldType}/${finalName} ➔ #${targetNewType}/${targetNewName}`,
       reclassify: {
         oldType,
-        oldName: targetName,
+        oldName: finalName,
         newType: targetNewType,
         newName: targetNewName,
       },
     };
   }
 
-  // Pattern: "Reclassify <Entity> as <NewType>"
+  // Pattern 5: "Reclassify <Entity> as <NewType>"
   const changeMatch2 = /^(?:reclassify|classify|mark)\s+([a-zA-Z0-9_-]+)\s+as\s+(?:a\s+|an\s+)?([a-zA-Z0-9_-]+)$/i.exec(trimmed);
   if (changeMatch2) {
     const targetName = changeMatch2[1];
-    const targetNewType = changeMatch2[2];
+    const targetNewType = formatTypeName(changeMatch2[2]);
     let oldType = 'Project';
     for (const e of entities.values()) {
       if (e.name.toLowerCase() === targetName.toLowerCase()) {
@@ -197,16 +344,21 @@ export function tryDeterministicCommand(
         break;
       }
     }
+    oldType = formatTypeName(oldType);
+    const resolved = resolveEntity(targetName);
+    const finalName = resolved ? resolved.name : targetName;
     return {
       type: 'reclassify',
-      title: `Reclassify #${oldType}/${targetName} ➔ #${targetNewType}/${targetName}`,
+      title: `Reclassify #${oldType}/${finalName} ➔ #${targetNewType}/${finalName}`,
       reclassify: {
         oldType,
-        oldName: targetName,
+        oldName: finalName,
         newType: targetNewType,
+        newName: finalName,
       },
     };
   }
 
   return null;
 }
+
