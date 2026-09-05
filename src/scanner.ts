@@ -57,7 +57,7 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
 
   // Which spelling of a name to display. Tags are case-folded for identity, so
   // some vote is needed; the most-used spelling beats first-seen, which would
-  // let one stray "#customer/amgen" name the account forever.
+  // let one stray "#customer/acmecorp" name the account forever.
   const nameVotes = new Map<string, Map<string, number>>();
   const typeVotes = new Map<string, Map<string, number>>();
   const vote = (into: Map<string, Map<string, number>>, key: string, display: string) => {
@@ -144,7 +144,7 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
         }
       }
       // A task inherits its section's entities only when it names none itself,
-      // so a task tagged #Customer/Suki under an Amgen heading stays Suki's.
+      // so a task tagged #Customer/Globex under an Acme heading stays Globex's.
       for (const { task, own } of pendingTasks) {
         const targets = own.length ? own : keys.map(k => sectionTags.get(k)!);
         for (const t of targets) get(t.key, t.type, t.name).tasks.push(task);

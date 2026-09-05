@@ -312,7 +312,7 @@ export interface EntityActivity {
 }
 
 export interface EntityRecord {
-  /** "Customer/Amgen" — the stable key used everywhere. */
+  /** "Customer/AcmeCorp" — the stable key used everywhere. */
   key: string;
   type: string;
   name: string;

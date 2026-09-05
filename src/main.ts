@@ -218,7 +218,7 @@ class RolodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Entity note folders')
-      .setDesc('Where an entity\'s own page lives — Customers/BMS.md, Projects/FoldRun.md. Rolodex links to it from the entity header.')
+      .setDesc('Where an entity\'s own page lives — Customers/AcmeCorp.md, Projects/Phoenix.md. Rolodex links to it from the entity header.')
       .addText(t => t
         .setValue(this.plugin.settings.entityNoteFolders.join(', '))
         .onChange(async v => {

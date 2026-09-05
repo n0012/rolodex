@@ -17,7 +17,7 @@ export interface ParsedTag {
 
 /**
  * The identity of an entity, case-folded. Obsidian's own tag handling is
- * case-insensitive, so #customer/amgen and #Customer/Amgen are one tag there
+ * case-insensitive, so #customer/acmecorp and #Customer/AcmeCorp are one tag there
  * and must be one entity here. This vault has both, plus a stray #Customers.
  * Never render a key — look the record up and use its display name.
  */

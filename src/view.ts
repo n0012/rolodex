@@ -127,7 +127,7 @@ export class RolodexView extends ItemView {
       type: 'text',
       cls: 'rolodex-action-input',
       placeholder:
-        '💬 Ask AI: e.g. "Change IMTS to Conference", "Clean up stale tasks for Amgen"...',
+        '💬 Ask AI: e.g. "Change IMTS to Conference", "Clean up stale tasks for AcmeCorp"...',
     });
 
     const actionBtn = actionRow.createEl('button', {
