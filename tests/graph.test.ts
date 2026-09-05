@@ -154,6 +154,21 @@ describe('getConnectedNodes', () => {
     expect(nodes[0].count).toBe(8); // Merged 5 + 3
     expect(nodes[0].isEntity).toBe(true);
   });
+
+  it('merges attendees (person/...) and wikilinks (link/...) for the same stakeholder', () => {
+    const entityWithPersonAndLink: EntityRecord = {
+      ...dummyEntity,
+      related: new Map([
+        ['link/david pichardo', 5],
+        ['person/david pichardo', 7],
+      ]),
+    };
+    const nodes = getConnectedNodes(entityWithPersonAndLink, dummyIndex);
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].name).toBe('David Pichardo');
+    expect(nodes[0].count).toBe(12); // Merged 5 + 7
+    expect(nodes[0].type).toBe('Stakeholder');
+  });
 });
 
 describe('computeGraphLayout', () => {

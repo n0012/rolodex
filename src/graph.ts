@@ -140,12 +140,13 @@ export function getConnectedNodes(
           displayName = toTitleCase(rawTarget);
         }
 
-        const existing = nodeMap.get(k);
+        const personKey = `person/${rawTarget.toLowerCase()}`;
+        const existing = nodeMap.get(personKey) || nodeMap.get(k);
         if (existing) {
           existing.count += count;
         } else {
-          nodeMap.set(k, {
-            key: k,
+          nodeMap.set(personKey, {
+            key: personKey,
             name: displayName,
             type: 'Stakeholder',
             count,
@@ -153,6 +154,30 @@ export function getConnectedNodes(
             targetPath: rawTarget,
           });
         }
+      }
+    } else if (k.startsWith('person/')) {
+      const rawTarget = k.slice(7).trim();
+      if (isSystemOrNoiseLink(rawTarget)) continue;
+      if (rawTarget.toLowerCase() === entity.name.toLowerCase()) continue;
+
+      let displayName = getNoteTitle ? getNoteTitle(rawTarget) : null;
+      if (!displayName) {
+        displayName = toTitleCase(rawTarget);
+      }
+
+      const personKey = `person/${rawTarget.toLowerCase()}`;
+      const existing = nodeMap.get(personKey);
+      if (existing) {
+        existing.count += count;
+      } else {
+        nodeMap.set(personKey, {
+          key: personKey,
+          name: displayName,
+          type: 'Stakeholder',
+          count,
+          isEntity: false,
+          targetPath: rawTarget,
+        });
       }
     } else {
       // Tagged entity key (e.g. partner/altimetrik, project/alphaevolve, customer/suki)

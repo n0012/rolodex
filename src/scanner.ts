@@ -193,6 +193,7 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
 
   // Pre-pass: read markdown files once and extract tags to build universe of known entities
   const fileContents = new Map<TFile, string>();
+  const emailToName = new Map<string, string>();
   for (const file of files) {
     try {
       const content = await app.vault.cachedRead(file);
@@ -200,6 +201,7 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
       for (const raw of parseTags(content)) {
         resolve(raw);
       }
+      parseAttendeesFromSection(content, emailToName);
     } catch {
       continue;
     }
@@ -308,6 +310,15 @@ export async function buildIndex(app: App, s: RolodexSettings): Promise<RolodexI
                 vote(nameVotes, wlKey, target);
                 e.related.set(wlKey, (e.related.get(wlKey) ?? 0) + 1);
               }
+            }
+
+            // Extract key persons from **Attendees:** / **Participants:** lines
+            const attendees = parseAttendeesFromSection(text, emailToName);
+            for (const person of attendees) {
+              if (person.canonicalName === t.name.toLowerCase()) continue;
+              const pKey = `person/${person.canonicalName}`;
+              vote(nameVotes, pKey, person.displayName);
+              e.related.set(pKey, (e.related.get(pKey) ?? 0) + 1);
             }
           }
         }
@@ -459,4 +470,158 @@ function attachEntityNotes(app: App, entities: Map<string, EntityRecord>, s: Rol
     const typed = hits.find(f => f.path.toLowerCase().startsWith(`${e.type.toLowerCase()}`));
     e.notePath = typed?.path ?? (hits.length === 1 ? hits[0].path : undefined);
   }
+}
+
+export interface ParsedAttendee {
+  canonicalName: string;
+  displayName: string;
+  email?: string;
+}
+
+const ATTENDEES_LINE_RE = /\*\*(?:Attendees|Participants):\*\*\s*([^\n\r]+)/gi;
+
+/**
+ * Extracts all attendees/participants mentioned in a section's **Attendees:** line.
+ */
+export function parseAttendeesFromSection(
+  text: string,
+  emailToName?: Map<string, string>
+): ParsedAttendee[] {
+  const results: ParsedAttendee[] = [];
+  const seen = new Set<string>();
+
+  ATTENDEES_LINE_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = ATTENDEES_LINE_RE.exec(text)) !== null) {
+    let line = match[1].replace(/\(\s*\d+\s+attendees?\s*\)/gi, '').trim();
+    if (!line) continue;
+
+    const rawTokens = line.split(/,\s*/);
+    for (let i = 0; i < rawTokens.length; i++) {
+      let t = rawTokens[i].trim();
+      if (!t) continue;
+
+      // Handle "Last, First (email)" or "Last, First <email>"
+      if (
+        i + 1 < rawTokens.length &&
+        !t.includes('@') &&
+        !t.includes('(') &&
+        !t.includes('<') &&
+        !t.includes(' ')
+      ) {
+        const next = rawTokens[i + 1].trim();
+        if (
+          (next.includes('(') || next.includes('<') || next.includes('@')) &&
+          next.split(' ').length <= 3
+        ) {
+          t = t + ', ' + next;
+          i++;
+        }
+      }
+
+      const person = parseAttendeeToken(t, emailToName);
+      if (!person) continue;
+
+      const norm = person.canonicalName.toLowerCase();
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        results.push(person);
+      }
+    }
+  }
+
+  return results;
+}
+
+export function parseAttendeeToken(
+  raw: string,
+  emailToName?: Map<string, string>
+): ParsedAttendee | null {
+  const t = raw.trim();
+  if (!t) return null;
+
+  // Ignore room / GVC / calendar resource emails
+  if (
+    t.includes('resource.calendar.google.com') ||
+    t.includes('resource.calendar') ||
+    t.includes('(GVC)') ||
+    t.includes('(resource)')
+  ) {
+    return null;
+  }
+
+  let namePart = '';
+  let emailPart = '';
+
+  const parenMatch = t.match(/^([^<(]+?)\s*[<(]([^>)]+)[>)]/);
+  if (parenMatch) {
+    namePart = parenMatch[1].trim();
+    emailPart = parenMatch[2].trim().toLowerCase();
+  } else if (t.includes('@')) {
+    emailPart = t.trim().toLowerCase();
+  } else {
+    namePart = t.trim();
+  }
+
+  // Filter out self
+  const normEmail = emailPart.toLowerCase();
+  const normName = namePart.toLowerCase();
+  if (
+    normEmail === 'losiern@google.com' ||
+    normEmail === 'losiern' ||
+    normName === 'losiern' ||
+    normName === 'nick losier' ||
+    normName === 'nick'
+  ) {
+    return null;
+  }
+
+  // If "Last, First"
+  if (namePart.includes(',')) {
+    const parts = namePart.split(',').map(p => p.trim());
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      namePart = `${parts[1]} ${parts[0]}`;
+    }
+  }
+
+  let cleanName = namePart.replace(/[^\w\s.-]/g, '').trim();
+
+  // If emailToName already knows this email, prefer the known full name
+  if (emailPart && emailToName?.has(emailPart)) {
+    cleanName = emailToName.get(emailPart)!;
+  } else if (cleanName && cleanName.includes(' ') && emailPart && emailToName) {
+    // Record known full name for this email
+    emailToName.set(emailPart, cleanName);
+  }
+
+  // If no namePart, derive from email username
+  if (!cleanName && emailPart) {
+    const user = emailPart.split('@')[0];
+    if (user.includes('.') || user.includes('-') || user.includes('_')) {
+      cleanName = user
+        .split(/[._-]/)
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    } else {
+      cleanName = user.charAt(0).toUpperCase() + user.slice(1).toLowerCase();
+    }
+  }
+
+  // Title-case
+  if (cleanName) {
+    cleanName = cleanName
+      .split(/\s+/)
+      .map(w => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+      .join(' ')
+      .trim();
+  }
+
+  if (!cleanName || cleanName.length < 2) return null;
+
+  return {
+    canonicalName: cleanName.toLowerCase(),
+    displayName: cleanName,
+    email: emailPart || undefined,
+  };
 }

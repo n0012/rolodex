@@ -1196,6 +1196,13 @@ export class RolodexView extends ItemView {
 
   private nameOf(key: string): string {
     if (key.startsWith('link/')) return `[[${key.slice(5)}]]`;
+    if (key.startsWith('person/')) {
+      return key
+        .slice(7)
+        .split(/\s+/)
+        .map(w => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+        .join(' ');
+    }
     const other = this.plugin.index?.entities.get(key);
     return other ? other.name : key;
   }

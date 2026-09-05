@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAggregateHeading, findEntitiesInHeading, extractEntityChunk, shouldScan } from '../src/scanner';
+import { isAggregateHeading, findEntitiesInHeading, extractEntityChunk, shouldScan, parseAttendeesFromSection } from '../src/scanner';
 
 describe('isAggregateHeading', () => {
   it('detects generic workflow aggregate headings', () => {
@@ -97,5 +97,39 @@ describe('shouldScan', () => {
   it('rejects files outside ~Daily when includeFolders is default empty', () => {
     expect(shouldScan('Wiki/Skills.md', defaultSettings, '.obsidian')).toBe(false);
     expect(shouldScan('Attachments/image.png', defaultSettings, '.obsidian')).toBe(false);
+  });
+});
+
+describe('parseAttendeesFromSection', () => {
+  it('parses attendees and reorders Last, First format', () => {
+    const text = `
+### Takeda Strategy Sync #Customer/Takeda
+**Attendees:** mpanchal@altimetrik.com, David Pichardo (davidpichardo@google.com), losiern@google.com, Meyer, Jan Felix (jan-felix.meyer@takeda.com), US-AUS-601W (resource@resource.calendar.google.com) (4 attendees)
+    `;
+
+    const attendees = parseAttendeesFromSection(text);
+    const names = attendees.map(a => a.displayName);
+    expect(names).toContain('David Pichardo');
+    expect(names).toContain('Jan Felix Meyer');
+    expect(names).toContain('Mpanchal');
+    // Filters out self and resource room
+    expect(names).not.toContain('Losiern');
+    expect(names).not.toContain('US-AUS-601W');
+  });
+
+  it('resolves email-only attendees via emailToName dictionary', () => {
+    const emailToName = new Map([
+      ['davidpichardo@google.com', 'David Pichardo'],
+      ['ravibaji@google.com', 'Ravi Baji'],
+    ]);
+
+    const text = `
+### Amgen Security Review #Customer/Amgen
+**Attendees:** davidpichardo@google.com, ravibaji@google.com, Praveen Seela (pseela@amgen.com)
+    `;
+
+    const attendees = parseAttendeesFromSection(text, emailToName);
+    const names = attendees.map(a => a.displayName);
+    expect(names).toEqual(['David Pichardo', 'Ravi Baji', 'Praveen Seela']);
   });
 });

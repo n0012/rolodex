@@ -1,6 +1,6 @@
 {
   "name": "rolodex",
-  "version": "1.4.9",
+  "version": "1.4.10",
   "description": "Obsidian dashboard for the entities in your vault.",
   "main": "main.js",
   "type": "module",
