@@ -1,0 +1,247 @@
+/* Rolodex */
+
+.rolodex {
+  padding: 0.6rem 0.7rem 2rem;
+  font-size: var(--font-ui-small);
+}
+
+.rolodex-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.rolodex-title {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
+}
+
+.rolodex-muted {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.rolodex-error {
+  color: var(--text-error);
+}
+
+.rolodex-overdue {
+  color: var(--text-error);
+  font-weight: 600;
+}
+
+.rolodex-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.rolodex-row input[type='date'],
+.rolodex-row input[type='search'] {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.rolodex-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+
+.rolodex-chip {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+  box-shadow: none;
+  height: auto;
+  line-height: 1.4;
+}
+
+.rolodex-chip:hover {
+  color: var(--text-normal);
+}
+
+.rolodex-chip.is-on {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.rolodex-chip.is-mini {
+  font-size: calc(var(--font-ui-smaller) * 0.92);
+  padding: 0.05rem 0.4rem;
+}
+
+.rolodex-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.3rem 0 0.5rem;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+/* Portfolio table */
+
+.rolodex-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-ui-smaller);
+}
+
+.rolodex-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 0.2rem 0.3rem;
+}
+
+.rolodex-table td {
+  padding: 0.25rem 0.3rem;
+  border-bottom: 1px solid var(--background-modifier-border-hover);
+  vertical-align: top;
+}
+
+.rolodex-table tr:hover td {
+  background: var(--background-modifier-hover);
+}
+
+.rolodex-heat {
+  width: 1.2rem;
+  text-align: center;
+}
+
+.rolodex-num {
+  text-align: right;
+  width: 2.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rolodex-rel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  border-bottom: none;
+}
+
+.rolodex-link {
+  cursor: pointer;
+  color: var(--text-accent);
+  font-weight: 500;
+}
+
+/* Entity detail */
+
+.rolodex-entity-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rolodex-entity-head h3 {
+  margin: 0;
+}
+
+.rolodex-section {
+  margin-top: 1rem;
+}
+
+.rolodex-section h4 {
+  margin: 0 0 0.4rem;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rolodex-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rolodex-task {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.1rem 0.4rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--background-modifier-border-hover);
+}
+
+.rolodex-task.is-late .rolodex-task-text {
+  color: var(--text-normal);
+}
+
+.rolodex-task.is-done .rolodex-task-text {
+  text-decoration: line-through;
+  color: var(--text-faint);
+}
+
+.rolodex-task-text {
+  cursor: pointer;
+}
+
+.rolodex-task-meta {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+/* Cards */
+
+.rolodex-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.5rem;
+  background: var(--background-primary-alt);
+}
+
+.rolodex-card-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-bottom: 0.2rem;
+  font-size: var(--font-ui-smaller);
+}
+
+.rolodex-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  margin-top: 0.3rem;
+  font-size: var(--font-ui-smaller);
+}
+
+.rolodex-card :is(p, ul, ol) {
+  margin: 0.2rem 0;
+}
+
+.rolodex-summary:empty {
+  display: none;
+}
+
+.rolodex-banner {
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.6rem;
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}

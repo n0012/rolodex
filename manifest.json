@@ -1,0 +1,10 @@
+{
+  "id": "rolodex",
+  "name": "Rolodex",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "A dashboard for the people, accounts and projects in your vault: who is going quiet, what you still owe them, and how they connect.",
+  "author": "n0012",
+  "authorUrl": "https://github.com/n0012/rolodex",
+  "isDesktopOnly": false
+}

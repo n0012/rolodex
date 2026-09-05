@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "inlineSourceMap": true,
+    "inlineSources": true,
+    "module": "ESNext",
+    "target": "ES2018",
+    "allowImportingTsExtensions": true,
+    "moduleResolution": "bundler",
+    "importHelpers": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "lib": ["ES2018", "DOM"]
+  },
+  "include": ["src/**/*.ts"]
+}
