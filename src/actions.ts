@@ -229,12 +229,13 @@ export async function saveTwoByTwoReport(
     folder = `Reporting/2x2/${scope}/${entityFolder}`;
     filename = `2x2 - Project_${safeName} - ${today}.md`;
   } else if (scope === 'weekly') {
+    const year = (to || today).slice(0, 4);
     const monthFolder = (to || today).slice(0, 7);
-    folder = `Reporting/2x2/${scope}/${monthFolder}`;
+    folder = `Reporting/2x2/${scope}/${year}/${monthFolder}`;
     filename = `weekly_2x2_${from || today}_to_${to || today}.md`;
   } else if (scope === 'monthly') {
-    const monthFolder = (to || today).slice(0, 7);
-    folder = `Reporting/2x2/${scope}/${monthFolder}`;
+    const year = (to || today).slice(0, 4);
+    folder = `Reporting/2x2/${scope}/${year}`;
     filename = `monthly_2x2_${from || today}_to_${to || today}.md`;
   }
 
