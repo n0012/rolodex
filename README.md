@@ -26,6 +26,16 @@ Executive 2x2:      [ 📅 Weekly 2x2 ]   [ 🗓️ Monthly 2x2 ]
 
 ---
 
+## ⚡ Quickstart (30 Seconds)
+
+1. **Tag any note or heading** in your vault using `#Type/Name` syntax:
+   ```markdown
+   # Architecture sync with #Customer/AcmeCorp on #Project/Phoenix
+   - [ ] Finalize production sizing proposal 📅 2026-09-12 🔺
+   ```
+2. **Open Rolodex**: Click the contact icon in the left ribbon, or press `Cmd+P` → `Rolodex: Open Rolodex`.
+3. **Optional AI**: Add a free Gemini API key from [aistudio.google.com](https://aistudio.google.com/apikey) in **Settings → Rolodex** to enable Executive 2x2 reports, briefs, and the natural language command bar.
+
 ## What it does
 
 **Portfolio cockpit.** Every entity across every namespace (`#Customer/AcmeCorp`, `#Project/Phoenix`, `#Partner/OmniTech`) in one live table: recency heat (`●` warm / `◐` cooling / `○` cold), open tasks, overdue deadlines, note count, and top connections. The **⚡ Open work only** toggle instantly hides quiet accounts so you see only entities with active commitments. Sorted by *needs attention* — overdue first, then open work, then longest silence.
@@ -104,6 +114,15 @@ Rolodex works out of the box with zero configuration if your tags use `#Type/Nam
 - `Rolodex: Rescan the vault` — Triggers an immediate full index rebuild.
 
 ---
+
+---
+
+## Privacy & Security
+
+- **100% Local Indexing**: Rolodex indexes your vault entirely in-memory within Obsidian in ~150 ms. No data is ever collected or phoned home.
+- **Direct API Calls**: When using AI features, requests go directly from your local machine to the official Google AI Studio API using your own key.
+- **Safe Vault Mutations**: Rolodex never touches a file without explicit user action. Task ticking verifies file contents line-by-line before writing, and AI commands present interactive diffs for approval first.
+- **Offline & Keyless**: All portfolio tables, commitment tracking, connection graphs, and task ticking work completely offline with no API key required.
 
 ## Development
 
