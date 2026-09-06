@@ -362,8 +362,57 @@ export interface TaskUpdateProposal {
   reason?: string;
 }
 
+export interface ChiefOfStaffActionProposal {
+  type: 'email_draft' | 'schedule_meeting' | 'fix_vector' | 'add_task' | 'update_next_step' | 'save_answer';
+  title: string;
+  description: string;
+  email?: {
+    to: string;
+    subject: string;
+    body: string;
+    rationale?: string;
+  };
+  meeting?: {
+    title: string;
+    attendees: string;
+    durationMinutes: number;
+    agenda: string;
+    rationale?: string;
+  };
+  vectorFix?: {
+    oppId: string;
+    oppName: string;
+    arr: string;
+    stage: string;
+    closeDate: string;
+    nextSteps: string;
+    command?: string;
+  };
+  task?: {
+    text: string;
+    priority?: string;
+    due?: string;
+    reason?: string;
+  };
+  nextStep?: {
+    text: string;
+    rationale?: string;
+  };
+}
+
+export interface ChiefOfStaffResult {
+  situationBrief: string;
+  diagnosticReview: {
+    healthStatus: 'healthy' | 'caution' | 'critical' | 'neutral';
+    headline: string;
+    findings: string[];
+    blindSpots: string[];
+  };
+  actionProposals: ChiefOfStaffActionProposal[];
+}
+
 export interface AiCommandResult {
-  type: 'reclassify' | 'task_updates' | 'draft' | 'message';
+  type: 'reclassify' | 'task_updates' | 'draft' | 'message' | 'chief_of_staff';
   title: string;
   reclassify?: {
     oldType: string;
@@ -377,4 +426,5 @@ export interface AiCommandResult {
     content: string;
   };
   message?: string;
+  chiefOfStaff?: ChiefOfStaffResult;
 }

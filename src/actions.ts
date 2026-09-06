@@ -367,3 +367,157 @@ export async function createOrOpenContactNote(
   await app.vault.create(targetPath, fileContent);
   return targetPath;
 }
+
+/**
+ * Builds a direct Gmail web draft compose URL.
+ */
+export function buildGmailDraftUrl(to: string, subject: string, body: string): string {
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+/**
+ * Builds a direct Google Calendar web event creation template URL.
+ */
+export function buildGoogleCalendarUrl(
+  title: string,
+  attendees: string,
+  agenda: string,
+  durationMinutes = 30,
+): string {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 10, 0, 0);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+
+  const formatIsoUtc = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const dates = `${formatIsoUtc(start)}/${formatIsoUtc(end)}`;
+
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dates}&details=${encodeURIComponent(agenda)}&add=${encodeURIComponent(attendees)}`;
+}
+
+/**
+ * Gets or creates today's daily note path: ~Daily/YYYY-MM-DD.md
+ */
+export function getTodayDailyNotePath(): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return `~Daily/${today}.md`;
+}
+
+/**
+ * Appends a task to today's Daily note under ## 📥 Inbox (Tasks-plugin syntax).
+ */
+export async function appendTaskToDailyInbox(
+  app: App,
+  taskText: string,
+  priority?: string,
+  due?: string,
+): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  const todayPath = `~Daily/${today}.md`;
+  let file = app.vault.getAbstractFileByPath(todayPath);
+
+  if (!(file instanceof TFile)) {
+    const adapter = app.vault.adapter;
+    if (!(await adapter.exists('~Daily'))) {
+      await adapter.mkdir('~Daily');
+    }
+    await app.vault.create(todayPath, `# ${today}\n\n## 📥 Inbox\n\n`);
+    file = app.vault.getAbstractFileByPath(todayPath);
+  }
+
+  const cleanText = taskText.trim().replace(/^-\s*\[\s*\]\s*/, '');
+  const priPart = priority ? ` ${priority}` : '';
+  const duePart = due ? ` 📅 ${due}` : '';
+  const taskLine = `- [ ] ${cleanText} ➕ ${today}${duePart}${priPart}`;
+
+  await appendTaskToNote(app, todayPath, taskLine, '📥 Inbox');
+  return todayPath;
+}
+
+/**
+ * Updates or sets the authoritative ## Next Step section on an entity note.
+ */
+export async function updateEntityNextStep(
+  app: App,
+  entityPath: string,
+  nextStepText: string,
+): Promise<boolean> {
+  const file = app.vault.getAbstractFileByPath(entityPath);
+  if (!(file instanceof TFile)) return false;
+
+  try {
+    await app.vault.process(file, (data) => {
+      const trimmed = nextStepText.trim();
+      const lines = data.split('\n');
+      let start = -1;
+      let end = lines.length;
+
+      for (let i = 0; i < lines.length; i++) {
+        if (/^##\s+Next Step\b/i.test(lines[i])) {
+          start = i;
+          for (let j = i + 1; j < lines.length; j++) {
+            if (/^#{1,2}\s+/.test(lines[j])) {
+              end = j;
+              break;
+            }
+          }
+          break;
+        }
+      }
+
+      const formatted = `## Next Step\n${trimmed}\n`;
+      if (start >= 0) {
+        lines.splice(start, end - start, formatted);
+        return lines.join('\n');
+      } else {
+        return `${data.trimEnd()}\n\n${formatted}`;
+      }
+    });
+    return true;
+  } catch (err) {
+    console.error(`Error updating next step in ${entityPath}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Saves a structured Chief of Staff Q&A answer to ~Review/Answers/YYYY-MM-DD-<slug>.md.
+ */
+export async function saveAnswerNote(
+  app: App,
+  entityName: string,
+  query: string,
+  content: string,
+): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  const slug = query
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 40) || 'answer';
+  const folder = '~Review/Answers';
+  const filename = `${today}-${entityName ? entityName.toLowerCase() + '-' : ''}${slug}.md`;
+  const path = `${folder}/${filename}`;
+
+  const adapter = app.vault.adapter;
+  if (!(await adapter.exists(folder))) {
+    const parts = folder.split('/');
+    let cur = '';
+    for (const p of parts) {
+      cur = cur ? `${cur}/${p}` : p;
+      if (!(await adapter.exists(cur))) await adapter.mkdir(cur);
+    }
+  }
+
+  const frontmatter = `---
+type: answer
+entity: "${entityName}"
+query: "${query.replace(/"/g, '\\"')}"
+created: ${today}
+---
+
+`;
+  await adapter.write(path, frontmatter + content.trim() + '\n');
+  return path;
+}
+

@@ -23,11 +23,11 @@ export default class RolodexPlugin extends Plugin {
 
     this.registerView(VIEW_TYPE_ROLODEX, leaf => new RolodexView(leaf, this));
     this.addSettingTab(new RolodexSettingTab(this.app, this));
-    this.addRibbonIcon('contact', 'Rolodex', () => void this.openView());
+    this.addRibbonIcon('layout-dashboard', 'Cockpit', () => void this.openView());
 
     this.addCommand({
       id: 'open',
-      name: 'Open Rolodex',
+      name: 'Open Cockpit',
       callback: () => void this.openView(),
     });
     this.addCommand({
@@ -35,7 +35,7 @@ export default class RolodexPlugin extends Plugin {
       name: 'Rescan the vault',
       callback: async () => {
         await this.rescan();
-        new Notice(`Rolodex: ${this.index?.entities.size ?? 0} entities`);
+        new Notice(`Cockpit: ${this.index?.entities.size ?? 0} entities`);
       },
     });
 

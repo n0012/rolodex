@@ -108,3 +108,23 @@ describe('createOrOpenContactNote', () => {
     expect(targetPath).toBe('Wiki/People/Existing Person.md');
   });
 });
+
+describe('Chief of Staff action URL builders', () => {
+  it('builds Gmail draft URL with properly encoded query parameters', async () => {
+    const { buildGmailDraftUrl } = await import('../src/actions');
+    const url = buildGmailDraftUrl('david@google.com', 'Amgen FoldRun Review', 'Hi David,\n\nChecking in on quota.');
+    expect(url).toContain('https://mail.google.com/mail/?view=cm&fs=1');
+    expect(url).toContain('to=david%40google.com');
+    expect(url).toContain('su=Amgen%20FoldRun%20Review');
+    expect(url).toContain('body=Hi%20David%2C%0A%0AChecking%20in%20on%20quota.');
+  });
+
+  it('builds Google Calendar event template URL', async () => {
+    const { buildGoogleCalendarUrl } = await import('../src/actions');
+    const url = buildGoogleCalendarUrl('Amgen Architecture Sync', 'lead@amgen.com', '1. Quota\n2. Sizing', 45);
+    expect(url).toContain('https://calendar.google.com/calendar/render?action=TEMPLATE');
+    expect(url).toContain('text=Amgen%20Architecture%20Sync');
+    expect(url).toContain('add=lead%40amgen.com');
+    expect(url).toContain('details=1.%20Quota%0A2.%20Sizing');
+  });
+});

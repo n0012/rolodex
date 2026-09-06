@@ -9,6 +9,7 @@ import {
   WorkspaceLeaf,
 } from 'obsidian';
 import {
+  askChiefOfStaff,
   buildContext,
   buildPortfolioContext,
   executeAiCommand,
@@ -16,6 +17,11 @@ import {
   summarize,
 } from './ai';
 import {
+  appendTaskToDailyInbox,
+  updateEntityNextStep,
+  saveAnswerNote,
+  buildGmailDraftUrl,
+  buildGoogleCalendarUrl,
   applyTaskUpdates,
   appendSectionToNote,
   appendTaskToNote,
@@ -33,7 +39,14 @@ import type { WorkloadOpportunity } from './reporting';
 import { daysAgoIso, todayIso } from './parse';
 import { buildRows, heat, inWindow, isOverdue, openTasks, sortRows, sortTasks } from './select';
 import type { SortKey, Window } from './select';
-import type { EntityRecord, EntityTask, PortfolioRow, ReportType } from './types';
+import type {
+  ChiefOfStaffActionProposal,
+  ChiefOfStaffResult,
+  EntityRecord,
+  EntityTask,
+  PortfolioRow,
+  ReportType,
+} from './types';
 import type RolodexPlugin from './main';
 import { renderEcosystemNetwork } from './graph';
 
@@ -76,10 +89,10 @@ export class RolodexView extends ItemView {
     return VIEW_TYPE_ROLODEX;
   }
   getDisplayText() {
-    return 'Rolodex: Executive Cockpit';
+    return 'Cockpit: Executive Chief of Staff';
   }
   getIcon() {
-    return 'contact';
+    return 'layout-dashboard';
   }
 
   async onOpen() {
@@ -138,13 +151,32 @@ export class RolodexView extends ItemView {
       type: 'text',
       cls: 'rolodex-action-input',
       placeholder:
-        '💬 Ask AI: e.g. "Change IMTS to Conference", "Clean up stale tasks for AcmeCorp"...',
+        '👔 Ask Chief of Staff: e.g. "What should I do next on Amgen?", "Draft reply on FoldRun", "Fix Vector opps"...',
     });
 
     const actionBtn = actionRow.createEl('button', {
       text: '⚡ Execute',
       cls: 'rolodex-chip is-cta rolodex-action-btn',
     });
+
+    const chipsRow = actionWrap.createDiv({ cls: 'rolodex-chips rolodex-quick-prompts' });
+    const quickPrompts = [
+      { label: '👔 Chief of Staff Brief', query: 'Provide a full situation briefing, diagnostic review, and recommended interventions.' },
+      { label: '🚨 Unblock & Fix Vector', query: 'Identify active blockers in CaseChat and missing Vector CRM workloads, then propose fixes.' },
+      { label: '✉️ Draft Follow-up', query: 'Draft an executive follow-up email to unblock pending commitments.' },
+      { label: '📅 Schedule Sync', query: 'Propose a working session invite and agenda for key stakeholders.' },
+    ];
+
+    for (const qp of quickPrompts) {
+      const chip = chipsRow.createEl('button', {
+        text: qp.label,
+        cls: 'rolodex-chip is-mini rolodex-quick-chip',
+      });
+      chip.addEventListener('click', () => {
+        actionInput.value = qp.query;
+        void runAction();
+      });
+    }
 
     const proposalHost = actionWrap.createDiv({ cls: 'rolodex-proposal-host' });
 
@@ -158,11 +190,13 @@ export class RolodexView extends ItemView {
       try {
         const currentEntity = this.selected && idx ? idx.entities.get(this.selected) ?? null : null;
         const res = await executeAiCommand(
+          this.app,
           this.plugin.settings.geminiApiKey,
           this.plugin.settings.geminiModel,
           val,
           currentEntity,
           idx ? idx.entities : new Map(),
+          this.win,
         );
 
         this.renderActionProposal(proposalHost, res, () => {
@@ -182,7 +216,7 @@ export class RolodexView extends ItemView {
 
     actionBtn.addEventListener('click', runAction);
     actionInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') runAction();
+      if (e.key === 'Enter') void runAction();
     });
 
     // Time window preset dropdown
@@ -371,11 +405,249 @@ export class RolodexView extends ItemView {
       }
     }
 
-    // 4. Simple message
+    // 4. Chief of Staff Dispatch
+    else if (res.type === 'chief_of_staff' && res.chiefOfStaff) {
+      this.renderChiefOfStaffDispatch(card, res.chiefOfStaff, onSuccess);
+    }
+
+    // 5. Simple message
     else {
       const body = card.createDiv({ cls: 'rolodex-proposal-body' });
       body.createDiv({ text: res.message || 'Action executed successfully.' });
     }
+  }
+
+  /** Renders the full Chief of Staff Dispatch: Diagnostic Review, Situation Brief, and Turnkey Interventions. */
+  private renderChiefOfStaffDispatch(
+    card: HTMLElement,
+    cos: ChiefOfStaffResult,
+    onSuccess: () => void,
+  ) {
+    const dispatch = card.createDiv({ cls: 'cockpit-chief-dispatch' });
+
+    // 1. Diagnostic Review Banner
+    const diag = cos.diagnosticReview;
+    const banner = dispatch.createDiv({
+      cls: `cockpit-diag-banner is-${diag.healthStatus || 'neutral'}`,
+    });
+    const bannerTop = banner.createDiv({ cls: 'cockpit-diag-top' });
+    const badgeLabel =
+      diag.healthStatus === 'critical'
+        ? '🚨 CRITICAL ATTENTION'
+        : diag.healthStatus === 'caution'
+        ? '⚠️ ATTENTION NEEDED'
+        : diag.healthStatus === 'healthy'
+        ? '🛡️ STRONG POSTURE'
+        : 'ℹ️ CHIEF OF STAFF ASSESSMENT';
+    bannerTop.createSpan({ text: badgeLabel, cls: 'cockpit-diag-badge' });
+    bannerTop.createSpan({ text: diag.headline, cls: 'cockpit-diag-headline' });
+
+    if (diag.findings?.length) {
+      const fList = banner.createEl('ul', { cls: 'cockpit-diag-findings' });
+      for (const f of diag.findings) {
+        fList.createEl('li', { text: f });
+      }
+    }
+    if (diag.blindSpots?.length) {
+      const bList = banner.createDiv({ cls: 'cockpit-diag-blindspots' });
+      for (const bs of diag.blindSpots) {
+        bList.createDiv({ text: `👁️ Blind Spot: ${bs}`, cls: 'cockpit-diag-blindspot-item' });
+      }
+    }
+
+    // 2. Executive Situation Brief
+    const briefSection = dispatch.createDiv({ cls: 'cockpit-chief-brief-sec' });
+    briefSection.createEl('h4', { text: '📋 Executive Situation Brief', cls: 'cockpit-chief-sec-title' });
+    const briefContent = briefSection.createDiv({ cls: 'cockpit-chief-brief-content markdown-rendered' });
+    void MarkdownRenderer.render(this.app, cos.situationBrief, briefContent, '', this.plugin);
+
+    briefContent.querySelectorAll('a.internal-link').forEach((linkEl) => {
+      linkEl.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const target = (linkEl as HTMLElement).getAttribute('data-href') || linkEl.textContent || '';
+        if (target) void this.app.workspace.openLinkText(target, '', false);
+      });
+    });
+
+    // 3. Action Proposals Deck
+    if (cos.actionProposals?.length) {
+      const actionsSec = dispatch.createDiv({ cls: 'cockpit-chief-actions-sec' });
+      actionsSec.createEl('h4', { text: '⚡ Recommended Interventions & Execution Levers', cls: 'cockpit-chief-sec-title' });
+      const grid = actionsSec.createDiv({ cls: 'cockpit-chief-actions-grid' });
+
+      for (const p of cos.actionProposals) {
+        const pCard = grid.createDiv({ cls: `cockpit-action-card is-${p.type}` });
+        const pHead = pCard.createDiv({ cls: 'cockpit-action-head' });
+        pHead.createSpan({ text: p.title, cls: 'cockpit-action-title' });
+        if (p.description) {
+          pCard.createDiv({ text: p.description, cls: 'cockpit-action-desc' });
+        }
+
+        const pBody = pCard.createDiv({ cls: 'cockpit-action-body' });
+
+        // A. Email Draft Proposal
+        if (p.type === 'email_draft' && p.email) {
+          const em = p.email;
+          const preview = pBody.createDiv({ cls: 'cockpit-preview-box' });
+          preview.createDiv({ text: `To: ${em.to}`, cls: 'cockpit-preview-meta' });
+          preview.createDiv({ text: `Subject: ${em.subject}`, cls: 'cockpit-preview-meta' });
+          preview.createEl('pre', { text: em.body, cls: 'cockpit-preview-text' });
+
+          const bRow = pCard.createDiv({ cls: 'rolodex-row' });
+          const openGmailBtn = bRow.createEl('button', {
+            text: '🚀 Open in Gmail',
+            cls: 'rolodex-chip is-cta',
+          });
+          openGmailBtn.addEventListener('click', () => {
+            const url = buildGmailDraftUrl(em.to, em.subject, em.body);
+            window.open(url, '_blank');
+            new Notice('Opening Gmail draft in browser…');
+          });
+
+          const copyBtn = bRow.createEl('button', { text: '📋 Copy Draft', cls: 'rolodex-chip' });
+          copyBtn.addEventListener('click', async () => {
+            await navigator.clipboard.writeText(`To: ${em.to}\nSubject: ${em.subject}\n\n${em.body}`);
+            new Notice('Email draft copied to clipboard!');
+          });
+        }
+
+        // B. Schedule Meeting Proposal
+        else if (p.type === 'schedule_meeting' && p.meeting) {
+          const mt = p.meeting;
+          const preview = pBody.createDiv({ cls: 'cockpit-preview-box' });
+          preview.createDiv({ text: `Attendees: ${mt.attendees}`, cls: 'cockpit-preview-meta' });
+          preview.createDiv({ text: `Duration: ${mt.durationMinutes} min`, cls: 'cockpit-preview-meta' });
+          preview.createEl('pre', { text: mt.agenda, cls: 'cockpit-preview-text' });
+
+          const bRow = pCard.createDiv({ cls: 'rolodex-row' });
+          const openCalBtn = bRow.createEl('button', {
+            text: '📅 Open in Google Calendar',
+            cls: 'rolodex-chip is-cta',
+          });
+          openCalBtn.addEventListener('click', () => {
+            const url = buildGoogleCalendarUrl(mt.title, mt.attendees, mt.agenda, mt.durationMinutes);
+            window.open(url, '_blank');
+            new Notice('Opening Google Calendar invite in browser…');
+          });
+
+          const addCalTaskBtn = bRow.createEl('button', { text: '📥 Add Scheduling Task', cls: 'rolodex-chip' });
+          addCalTaskBtn.addEventListener('click', async () => {
+            const taskText = `Schedule ${mt.title} with ${mt.attendees}`;
+            await appendTaskToDailyInbox(this.app, taskText, '🔺');
+            new Notice('Added scheduling task to Today\'s Inbox!');
+          });
+        }
+
+        // C. Fix in Vector Proposal
+        else if (p.type === 'fix_vector' && p.vectorFix) {
+          const vf = p.vectorFix;
+          const preview = pBody.createDiv({ cls: 'cockpit-preview-box' });
+          preview.createDiv({ text: `Opp: ${vf.oppName} (${vf.oppId || 'N/A'})`, cls: 'cockpit-preview-meta' });
+          preview.createDiv({ text: `ARR: ${vf.arr} | Stage: ${vf.stage} | Close: ${vf.closeDate}`, cls: 'cockpit-preview-meta' });
+          if (vf.nextSteps) {
+            preview.createDiv({ text: `Next Step: ${vf.nextSteps}`, cls: 'cockpit-preview-meta' });
+          }
+
+          const bRow = pCard.createDiv({ cls: 'rolodex-row' });
+          const fixBtn = bRow.createEl('button', {
+            text: '⚡ Launch Fix in Vector (CDP)',
+            cls: 'rolodex-chip is-cta is-vector-fix',
+          });
+          fixBtn.addEventListener('click', () => {
+            const accName = this.selected ? (this.plugin.index?.entities.get(this.selected)?.name || '') : vf.oppName;
+            new VectorFixModal(this.app, accName, {
+              id: vf.oppId,
+              name: vf.oppName,
+              url: '',
+              amount: parseFloat(vf.arr.replace(/[^0-9.]/g, '')) || 0,
+              amountFormatted: vf.arr,
+              closeDate: vf.closeDate,
+              stage: vf.stage,
+              type: 'New',
+              isMissingWorkload: true,
+              suggestedFix: `Create Workload (${vf.arr})`,
+              fixCommand: vf.command,
+            }).open();
+          });
+
+          const copyCliBtn = bRow.createEl('button', { text: '📋 Copy CLI', cls: 'rolodex-chip' });
+          copyCliBtn.addEventListener('click', async () => {
+            const cmd = vf.command || `python3 workload_hygiene.py --opp "${vf.oppId}" --close-date "${vf.closeDate}"`;
+            await navigator.clipboard.writeText(cmd);
+            new Notice('Copied CLI remediation command!');
+          });
+        }
+
+        // D. Add Task Proposal
+        else if (p.type === 'add_task' && p.task) {
+          const t = p.task;
+          const preview = pBody.createDiv({ cls: 'cockpit-preview-box' });
+          preview.createDiv({ text: `Task: ${t.text}`, cls: 'cockpit-preview-meta' });
+          if (t.due) preview.createDiv({ text: `Due: ${t.due}`, cls: 'cockpit-preview-meta' });
+          if (t.reason) preview.createDiv({ text: `Rationale: ${t.reason}`, cls: 'cockpit-preview-meta is-muted' });
+
+          const bRow = pCard.createDiv({ cls: 'rolodex-row' });
+          const addTaskBtn = bRow.createEl('button', {
+            text: '📥 Add to Today\'s Inbox',
+            cls: 'rolodex-chip is-cta',
+          });
+          addTaskBtn.addEventListener('click', async () => {
+            addTaskBtn.disabled = true;
+            addTaskBtn.setText('⏳ Adding…');
+            await appendTaskToDailyInbox(this.app, t.text, t.priority, t.due);
+            addTaskBtn.setText('✅ Added to Inbox');
+            new Notice('Task added to Today\'s Inbox!');
+          });
+        }
+
+        // E. Update Next Step Proposal
+        else if (p.type === 'update_next_step' && p.nextStep) {
+          const ns = p.nextStep;
+          const preview = pBody.createDiv({ cls: 'cockpit-preview-box' });
+          preview.createEl('pre', { text: ns.text, cls: 'cockpit-preview-text' });
+          if (ns.rationale) preview.createDiv({ text: `Rationale: ${ns.rationale}`, cls: 'cockpit-preview-meta is-muted' });
+
+          const bRow = pCard.createDiv({ cls: 'rolodex-row' });
+          const commitBtn = bRow.createEl('button', {
+            text: '📌 Commit as Authoritative Next Step',
+            cls: 'rolodex-chip is-cta',
+          });
+          commitBtn.addEventListener('click', async () => {
+            const e = this.selected ? this.plugin.index?.entities.get(this.selected) : null;
+            if (!e?.notePath) {
+              new Notice('No dedicated note found for this entity to update.');
+              return;
+            }
+            commitBtn.disabled = true;
+            commitBtn.setText('⏳ Updating…');
+            const ok = await updateEntityNextStep(this.app, e.notePath, ns.text);
+            if (ok) {
+              commitBtn.setText('✅ Next Step Updated');
+              new Notice(`Updated ## Next Step for ${e.name}!`);
+            } else {
+              commitBtn.disabled = false;
+              commitBtn.setText('⚠️ Failed to update');
+            }
+          });
+        }
+      }
+    }
+
+    // 4. Global Action Footer
+    const footer = dispatch.createDiv({ cls: 'cockpit-chief-footer' });
+    const saveAnsBtn = footer.createEl('button', {
+      text: '📁 Save Briefing to Answers (~Review/)',
+      cls: 'rolodex-chip',
+    });
+    saveAnsBtn.addEventListener('click', async () => {
+      saveAnsBtn.disabled = true;
+      saveAnsBtn.setText('⏳ Saving…');
+      const entityName = this.selected ? (this.plugin.index?.entities.get(this.selected)?.name || '') : 'Portfolio';
+      const ansContent = `### Situation Brief\n\n${cos.situationBrief}\n\n### Diagnostic Verdict\n\n**${cos.diagnosticReview.headline}**\n\n${cos.diagnosticReview.findings.map(f => `- ${f}`).join('\n')}\n`;
+      const path = await saveAnswerNote(this.app, entityName, 'Chief of Staff Briefing', ansContent);
+      saveAnsBtn.setText('✅ Saved to Answers');
+      new Notice(`Filed answer note: ${path}`);
+    });
   }
 
   // ── Portfolio View ───────────────────────────────────────────
@@ -960,8 +1232,13 @@ export class RolodexView extends ItemView {
 
     const row = root.createDiv({ cls: 'rolodex-row' });
     new ButtonComponent(row)
-      .setButtonText('🧠 Executive Brief')
+      .setButtonText('👔 Chief of Staff Brief')
       .setCta()
+      .setTooltip('Diagnostic health review, risk scan, and turnkey email/meeting/Vector action proposals')
+      .onClick(() => this.triggerChiefOfStaffBrief(e));
+
+    new ButtonComponent(row)
+      .setButtonText('🧠 Executive Brief')
       .onClick(() => this.triggerBriefing());
 
     const isProject = e.type.toLowerCase() === 'project';
@@ -984,6 +1261,43 @@ export class RolodexView extends ItemView {
         this.entityReportPath,
         this.entityReportTitle || 'Executive Brief',
       );
+    }
+  }
+
+  private async triggerChiefOfStaffBrief(e: EntityRecord) {
+    if (!this.plugin.settings.geminiApiKey) {
+      new Notice('Add a Gemini API key in Cockpit settings first');
+      return;
+    }
+
+    const host = this.body().querySelector('.rolodex-summary') as HTMLElement | null;
+    if (!host) return;
+    host.empty();
+    host.createDiv({ text: '👔 Chief of Staff analyzing posture, telemetry, and commitments…', cls: 'rolodex-muted' });
+
+    try {
+      const res = await askChiefOfStaff(
+        this.app,
+        this.plugin.settings.geminiApiKey,
+        this.plugin.settings.geminiModel,
+        `Provide an executive situation briefing, diagnostic health review, and proactive turnkey execution proposals for ${e.type}/${e.name}.`,
+        e,
+        this.plugin.index ? this.plugin.index.entities : new Map(),
+        this.win,
+      );
+      host.empty();
+      const card = host.createDiv({ cls: 'rolodex-proposal-card' });
+      const head = card.createDiv({ cls: 'rolodex-proposal-head' });
+      head.createSpan({ text: `👔 Chief of Staff Dispatch: ${e.name}`, cls: 'rolodex-proposal-title' });
+      const closeBtn = head.createEl('button', { text: '✕', cls: 'rolodex-chip is-mini' });
+      closeBtn.addEventListener('click', () => host.empty());
+      this.renderChiefOfStaffDispatch(card, res, () => host.empty());
+    } catch (err: any) {
+      host.empty();
+      host.createDiv({
+        text: `⚠️ Error: ${err.message || String(err)}`,
+        cls: 'rolodex-error',
+      });
     }
   }
 
