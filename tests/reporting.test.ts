@@ -187,6 +187,41 @@ _None open._
     const sukiCases = await parseAccountSupportCases(mockApp, 'Suki');
     expect(sukiCases.length).toBe(0);
   });
+
+  it('prioritizes dedicated customer extract file over dashboard', async () => {
+    const custFile = Object.create(TFile.prototype);
+    custFile.path = 'Reporting/Support Cases/customer/Commure.md';
+    custFile.basename = 'Commure';
+
+    const custContent = `---
+type: support-cases-extract
+customer: Commure
+open_cases: 1
+---
+# Support Cases — Commure
+
+## 🚨 Active Support Cases
+
+| Case | Priority | Product | Status | Owner | Age | Last Modified |
+|---|---|---|---|---|---|---|
+| [74204836](https://goto.corp.google.com/vgo/74204836) | 🟡 P2 | Cloud SQL for PostgreSQL | IPCO - In Progress Consult Owner | pallavidani | 26d | 2026-09-05 18:22 UTC |
+`;
+
+    const mockApp: any = {
+      vault: {
+        getMarkdownFiles: () => [custFile],
+        getAbstractFileByPath: () => null,
+        cachedRead: async (f: any) => (f === custFile ? custContent : ''),
+      },
+    };
+
+    const commureCases = await parseAccountSupportCases(mockApp, 'Commure');
+    expect(commureCases.length).toBe(1);
+    expect(commureCases[0].caseNumber).toBe('74204836');
+    expect(commureCases[0].priority).toBe('P2');
+    expect(commureCases[0].product).toBe('Cloud SQL for PostgreSQL');
+    expect(commureCases[0].filePath).toBe('Reporting/Support Cases/customer/Commure.md');
+  });
 });
 
 describe('parseAccountWorkloads', () => {

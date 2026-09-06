@@ -27,6 +27,7 @@ export interface SupportCaseItem {
   status: string;
   owner: string;
   age: string;
+  filePath?: string;
 }
 
 export interface WorkloadOpportunity {
@@ -188,9 +189,68 @@ export function findExistingReports(app: App, entity: EntityRecord): ExistingRep
 }
 
 /**
- * Parses active support cases for an account from Reporting/Dashboards/Support Cases.md
+ * Parses active support cases for an account from Reporting/Support Cases/customer/<Account>.md
+ * with fallback to Reporting/Dashboards/Support Cases.md
  */
 export async function parseAccountSupportCases(app: App, accountName: string): Promise<SupportCaseItem[]> {
+  const normTarget = normalizeAccountName(accountName);
+
+  // 1. Try dedicated customer extract first: Reporting/Support Cases/customer/<Account>.md
+  const allFiles = typeof app.vault.getMarkdownFiles === 'function' ? app.vault.getMarkdownFiles() : [];
+  const customerFile = allFiles.find(f => 
+    f.path.startsWith('Reporting/Support Cases/customer/') &&
+    accountsMatch(f.basename, normTarget)
+  );
+
+  if (customerFile instanceof TFile) {
+    const content = await app.vault.cachedRead(customerFile);
+    const cases: SupportCaseItem[] = [];
+    const lines = content.split('\n');
+
+    let inTable = false;
+    for (const line of lines) {
+      if (line.startsWith('## 🚨 Active Support Cases')) {
+        inTable = true;
+        continue;
+      } else if (line.startsWith('## ')) {
+        inTable = false;
+      }
+
+      if (!inTable || !line.startsWith('|')) continue;
+      const cols = line.split('|').map(c => c.trim()).slice(1, -1);
+      if (cols.length < 5 || cols[0].toLowerCase().startsWith('case') || cols[0].startsWith('---')) continue;
+
+      const caseCol = cols[0];
+      const priCol = cols[1];
+      const product = cols[2];
+      const status = cols[3];
+      const owner = cols[4] || '';
+      const age = cols[5] || '';
+
+      const linkMatch = caseCol.match(/\[(\d+)\]\(([^)]+)\)/);
+      const caseNumber = linkMatch ? linkMatch[1] : caseCol;
+      const url = linkMatch ? linkMatch[2] : '';
+
+      let priority: 'P0' | 'P1' | 'P2' = 'P2';
+      if (priCol.includes('P0')) priority = 'P0';
+      else if (priCol.includes('P1')) priority = 'P1';
+
+      cases.push({
+        caseNumber,
+        url,
+        priority,
+        product,
+        status,
+        owner,
+        age,
+        filePath: customerFile.path,
+      });
+    }
+
+    return cases;
+  }
+
+  // 2. Fallback to master dashboard: Reporting/Dashboards/Support Cases.md
   const casesFile = app.vault.getAbstractFileByPath('Reporting/Dashboards/Support Cases.md');
   if (!(casesFile instanceof TFile)) return [];
 
@@ -241,6 +301,7 @@ export async function parseAccountSupportCases(app: App, accountName: string): P
       status,
       owner,
       age,
+      filePath: casesFile.path,
     });
   }
 

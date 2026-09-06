@@ -738,7 +738,7 @@ export class RolodexView extends ItemView {
         link.addEventListener('click', (ev) => {
           ev.preventDefault();
           if (c.url) window.open(c.url, '_blank');
-          else void this.app.workspace.openLinkText('Reporting/Dashboards/Support Cases.md', '', false);
+          else void this.app.workspace.openLinkText(c.filePath || 'Reporting/Dashboards/Support Cases.md', '', false);
         });
 
         top.createSpan({
@@ -756,6 +756,20 @@ export class RolodexView extends ItemView {
           bottom.createSpan({ text: ` · ${c.owner}`, cls: 'rolodex-case-owner' });
         }
       }
+
+      const foot = casesBlock.createDiv({ cls: 'rolodex-intel-block-footer' });
+      const targetCasePath = cases[0]?.filePath || 'Reporting/Dashboards/Support Cases.md';
+      const targetCaseLabel = cases[0]?.filePath && !cases[0].filePath.endsWith('Support Cases.md')
+        ? `${e.name} Cases ↗`
+        : 'Support Cases.md ↗';
+      const dashLink = foot.createEl('a', {
+        text: targetCaseLabel,
+        cls: 'rolodex-intel-dashboard-link',
+      });
+      dashLink.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        void this.app.workspace.openLinkText(targetCasePath, '', false);
+      });
     }
 
     // 2. Followed by Pipeline
