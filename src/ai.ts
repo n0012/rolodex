@@ -227,7 +227,12 @@ User Query / Directive: "${query}"
 
 CRITICAL GROUND-TRUTH & ACTIONABILITY RULES:
 1. Rely EXCLUSIVELY and STRICTLY on the facts, stakeholders, support tickets, and telemetry in the GROUND TRUTH CONTEXT. Do NOT invent fictional companies or cases.
-2. Produce a rigorous, structured response matching this JSON schema:
+2. TASK AWARENESS & DEDUPLICATION:
+   - Carefully review all items under "## Open tasks" and "## Completed in the window" before suggesting actions.
+   - NEVER propose a new task that duplicates, restates, or overlaps an existing open task.
+   - If an existing task is overdue, slipping, or blocked (e.g., #waiting), prioritize proposing concrete interventions (an email draft, meeting invite, or Vector CRM fix) to UNBLOCK that commitment rather than logging duplicate tasks.
+   - Any new task proposed must be a distinct, high-leverage forward step not already captured on file.
+3. Produce a rigorous, structured response matching this JSON schema:
 
 {
   "situationBrief": "Grounded executive briefing (2-3 paragraphs) directly answering the query or synthesizing current posture. Cite notes, dates (e.g. [[${today}]]), customer stakeholders, and cases.",
