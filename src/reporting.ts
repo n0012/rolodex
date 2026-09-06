@@ -28,6 +28,15 @@ export interface SupportCaseItem {
   owner: string;
   age: string;
   filePath?: string;
+  isResolved?: boolean;
+  resolvedDate?: string;
+  notes?: string;
+}
+
+export interface AccountSupportCases {
+  openCases: SupportCaseItem[];
+  resolvedCases: SupportCaseItem[];
+  filePath?: string;
 }
 
 export interface WorkloadOpportunity {
@@ -189,10 +198,10 @@ export function findExistingReports(app: App, entity: EntityRecord): ExistingRep
 }
 
 /**
- * Parses active support cases for an account from Reporting/Support Cases/customer/<Account>.md
+ * Parses active and historical resolved support cases for an account from Reporting/Support Cases/customer/<Account>.md
  * with fallback to Reporting/Dashboards/Support Cases.md
  */
-export async function parseAccountSupportCases(app: App, accountName: string): Promise<SupportCaseItem[]> {
+export async function parseAccountSupportCases(app: App, accountName: string): Promise<AccountSupportCases> {
   const normTarget = normalizeAccountName(accountName);
 
   // 1. Try dedicated customer extract first: Reporting/Support Cases/customer/<Account>.md
@@ -204,55 +213,88 @@ export async function parseAccountSupportCases(app: App, accountName: string): P
 
   if (customerFile instanceof TFile) {
     const content = await app.vault.cachedRead(customerFile);
-    const cases: SupportCaseItem[] = [];
+    const openCases: SupportCaseItem[] = [];
+    const resolvedCases: SupportCaseItem[] = [];
     const lines = content.split('\n');
 
-    let inTable = false;
+    let section: 'active' | 'resolved' | null = null;
     for (const line of lines) {
       if (line.startsWith('## 🚨 Active Support Cases')) {
-        inTable = true;
+        section = 'active';
+        continue;
+      } else if (line.startsWith('## 📜')) {
+        section = 'resolved';
         continue;
       } else if (line.startsWith('## ')) {
-        inTable = false;
+        section = null;
       }
 
-      if (!inTable || !line.startsWith('|')) continue;
+      if (!section || !line.startsWith('|')) continue;
       const cols = line.split('|').map(c => c.trim()).slice(1, -1);
-      if (cols.length < 5 || cols[0].toLowerCase().startsWith('case') || cols[0].startsWith('---')) continue;
+      if (cols.length < 5 || cols[0].toLowerCase().startsWith('case') || cols[0].startsWith('---') || cols[0].startsWith(':--')) continue;
 
       const caseCol = cols[0];
       const priCol = cols[1];
       const product = cols[2];
-      const status = cols[3];
-      const owner = cols[4] || '';
-      const age = cols[5] || '';
 
       const linkMatch = caseCol.match(/\[(\d+)\]\(([^)]+)\)/);
       const caseNumber = linkMatch ? linkMatch[1] : caseCol;
-      const url = linkMatch ? linkMatch[2] : '';
+      const url = linkMatch ? linkMatch[2] : (caseNumber.match(/^\d+$/) ? `https://goto.corp.google.com/vgo/${caseNumber}` : '');
 
       let priority: 'P0' | 'P1' | 'P2' = 'P2';
       if (priCol.includes('P0')) priority = 'P0';
       else if (priCol.includes('P1')) priority = 'P1';
 
-      cases.push({
-        caseNumber,
-        url,
-        priority,
-        product,
-        status,
-        owner,
-        age,
-        filePath: customerFile.path,
-      });
+      if (section === 'active') {
+        const status = cols[3];
+        const owner = cols[4] || '';
+        const age = cols[5] || '';
+        openCases.push({
+          caseNumber,
+          url,
+          priority,
+          product,
+          status,
+          owner,
+          age,
+          filePath: customerFile.path,
+          isResolved: false,
+        });
+      } else if (section === 'resolved') {
+        const resolvedDate = cols[3];
+        const owner = cols[4] || '';
+        const notes = cols[5] || '';
+        resolvedCases.push({
+          caseNumber,
+          url,
+          priority,
+          product,
+          status: 'Resolved',
+          owner,
+          age: '',
+          resolvedDate,
+          notes,
+          filePath: customerFile.path,
+          isResolved: true,
+        });
+      }
     }
 
-    return cases;
+    return {
+      openCases,
+      resolvedCases,
+      filePath: customerFile.path,
+    };
   }
 
   // 2. Fallback to master dashboard: Reporting/Dashboards/Support Cases.md
   const casesFile = app.vault.getAbstractFileByPath('Reporting/Dashboards/Support Cases.md');
-  if (!(casesFile instanceof TFile)) return [];
+  if (!(casesFile instanceof TFile)) {
+    return {
+      openCases: [],
+      resolvedCases: [],
+    };
+  }
 
   const content = await app.vault.cachedRead(casesFile);
   const cases: SupportCaseItem[] = [];
@@ -302,10 +344,15 @@ export async function parseAccountSupportCases(app: App, accountName: string): P
       owner,
       age,
       filePath: casesFile.path,
+      isResolved: false,
     });
   }
 
-  return cases;
+  return {
+    openCases: cases,
+    resolvedCases: [],
+    filePath: casesFile.path,
+  };
 }
 
 /**

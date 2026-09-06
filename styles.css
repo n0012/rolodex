@@ -987,6 +987,33 @@
   border: 1px solid rgba(234, 179, 8, 0.5);
 }
 
+.rolodex-case-pri-badge.is-resolved {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--text-success);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.rolodex-case-resolved-chip {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--text-success);
+  font-weight: 600;
+  font-size: calc(var(--font-ui-smaller) * 0.85);
+  padding: 0.05rem 0.35rem;
+}
+
+.rolodex-case-healthy-chip {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: calc(var(--font-ui-smaller) * 0.85);
+  padding: 0.05rem 0.35rem;
+}
+
+.rolodex-case-card.is-resolved {
+  opacity: 0.85;
+  border-left: 2px solid var(--text-success);
+}
+
 .rolodex-case-age {
   font-size: calc(var(--font-ui-smaller) * 0.85);
   color: var(--text-muted);

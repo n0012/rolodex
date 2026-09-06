@@ -696,15 +696,18 @@ export class RolodexView extends ItemView {
       return;
     }
 
-    const [cases, pipeline] = await Promise.all([
+    const [casesData, pipeline] = await Promise.all([
       parseAccountSupportCases(this.app, e.name),
       parseAccountWorkloads(this.app, e.name),
     ]);
 
+    const openCases = casesData.openCases;
+    const resolvedCases = casesData.resolvedCases;
+    const hasOpenCases = openCases.length > 0;
+    const hasResolvedCases = resolvedCases.length > 0;
     const hasPipeline = !!(pipeline && (pipeline.opps.length > 0 || pipeline.totalPipeline > 0));
-    const hasCases = cases.length > 0;
 
-    if (!hasCases && !hasPipeline) {
+    if (!hasOpenCases && !hasResolvedCases && !hasPipeline) {
       intelCol.remove();
       return;
     }
@@ -714,19 +717,27 @@ export class RolodexView extends ItemView {
 
     const panel = intelCol.createDiv({ cls: 'rolodex-intel-panel' });
 
-    // 1. Cases (if open at top)
-    if (hasCases) {
+    // 1. Cases:
+    // If open cases exist -> render Urgent / Open cases alert block
+    if (hasOpenCases) {
       const casesBlock = panel.createDiv({ cls: 'rolodex-intel-block is-cases' });
       const head = casesBlock.createDiv({ cls: 'rolodex-intel-block-header' });
       const title = head.createDiv({ cls: 'rolodex-intel-block-title' });
       title.createSpan({ text: '🚨 Support Cases', cls: 'rolodex-intel-title-text' });
       title.createSpan({
-        text: `${cases.length} open`,
+        text: `${openCases.length} open`,
         cls: 'rolodex-chip is-mini rolodex-case-count-chip',
       });
+      if (hasResolvedCases) {
+        title.createSpan({
+          text: `${resolvedCases.length} resolved`,
+          cls: 'rolodex-chip is-mini rolodex-case-resolved-chip',
+          attr: { title: `${resolvedCases.length} historical resolved cases in ledger` },
+        });
+      }
 
       const list = casesBlock.createDiv({ cls: 'rolodex-intel-cases-list' });
-      for (const c of cases) {
+      for (const c of openCases) {
         const card = list.createDiv({ cls: 'rolodex-case-card' });
         const top = card.createDiv({ cls: 'rolodex-case-card-top' });
 
@@ -758,9 +769,70 @@ export class RolodexView extends ItemView {
       }
 
       const foot = casesBlock.createDiv({ cls: 'rolodex-intel-block-footer' });
-      const targetCasePath = cases[0]?.filePath || 'Reporting/Dashboards/Support Cases.md';
-      const targetCaseLabel = cases[0]?.filePath && !cases[0].filePath.endsWith('Support Cases.md')
+      const targetCasePath = casesData.filePath || 'Reporting/Dashboards/Support Cases.md';
+      const targetCaseLabel = casesData.filePath && !casesData.filePath.endsWith('Support Cases.md')
         ? `${e.name} Cases ↗`
+        : 'Support Cases.md ↗';
+      const dashLink = foot.createEl('a', {
+        text: targetCaseLabel,
+        cls: 'rolodex-intel-dashboard-link',
+      });
+      dashLink.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        void this.app.workspace.openLinkText(targetCasePath, '', false);
+      });
+    } else if (hasResolvedCases) {
+      // Reassuring status block showing 0 open and recent historical resolved cases
+      const casesBlock = panel.createDiv({ cls: 'rolodex-intel-block is-cases-healthy' });
+      const head = casesBlock.createDiv({ cls: 'rolodex-intel-block-header' });
+      const title = head.createDiv({ cls: 'rolodex-intel-block-title' });
+      title.createSpan({ text: '🛡️ Support Health', cls: 'rolodex-intel-title-text' });
+      title.createSpan({
+        text: '0 open',
+        cls: 'rolodex-chip is-mini rolodex-case-healthy-chip',
+      });
+      title.createSpan({
+        text: `${resolvedCases.length} resolved`,
+        cls: 'rolodex-chip is-mini rolodex-case-resolved-chip',
+        attr: { title: `${resolvedCases.length} historical resolved cases in ledger` },
+      });
+
+      const list = casesBlock.createDiv({ cls: 'rolodex-intel-cases-list' });
+      for (const c of resolvedCases.slice(0, 2)) {
+        const card = list.createDiv({ cls: 'rolodex-case-card is-resolved' });
+        const top = card.createDiv({ cls: 'rolodex-case-card-top' });
+
+        const link = top.createEl('a', {
+          text: `#${c.caseNumber}`,
+          cls: 'rolodex-case-num-link',
+          attr: { title: `Resolved ${c.resolvedDate || ''} (Owner: ${c.owner})` },
+        });
+        link.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          if (c.url) window.open(c.url, '_blank');
+          else void this.app.workspace.openLinkText(c.filePath || 'Reporting/Dashboards/Support Cases.md', '', false);
+        });
+
+        top.createSpan({
+          text: 'Resolved',
+          cls: 'rolodex-case-pri-badge is-resolved',
+        });
+
+        if (c.resolvedDate) {
+          top.createSpan({ text: c.resolvedDate, cls: 'rolodex-case-age' });
+        }
+
+        const bottom = card.createDiv({ cls: 'rolodex-case-details' });
+        bottom.createSpan({ text: c.product, cls: 'rolodex-case-product' });
+        if (c.notes) {
+          bottom.createSpan({ text: ` · ${c.notes}`, cls: 'rolodex-case-owner' });
+        }
+      }
+
+      const foot = casesBlock.createDiv({ cls: 'rolodex-intel-block-footer' });
+      const targetCasePath = casesData.filePath || 'Reporting/Dashboards/Support Cases.md';
+      const targetCaseLabel = casesData.filePath && !casesData.filePath.endsWith('Support Cases.md')
+        ? `${e.name} Case History ↗`
         : 'Support Cases.md ↗';
       const dashLink = foot.createEl('a', {
         text: targetCaseLabel,

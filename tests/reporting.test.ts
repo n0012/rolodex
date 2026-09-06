@@ -174,18 +174,18 @@ _None open._
     };
 
     const commureCases = await parseAccountSupportCases(mockApp, 'Commure');
-    expect(commureCases.length).toBe(1);
-    expect(commureCases[0].caseNumber).toBe('74204836');
-    expect(commureCases[0].priority).toBe('P2');
-    expect(commureCases[0].product).toBe('Cloud SQL for PostgreSQL');
-    expect(commureCases[0].age).toBe('26d');
+    expect(commureCases.openCases.length).toBe(1);
+    expect(commureCases.openCases[0].caseNumber).toBe('74204836');
+    expect(commureCases.openCases[0].priority).toBe('P2');
+    expect(commureCases.openCases[0].product).toBe('Cloud SQL for PostgreSQL');
+    expect(commureCases.openCases[0].age).toBe('26d');
 
     const amgenCases = await parseAccountSupportCases(mockApp, 'Amgen');
-    expect(amgenCases.length).toBe(1);
-    expect(amgenCases[0].caseNumber).toBe('74500000');
+    expect(amgenCases.openCases.length).toBe(1);
+    expect(amgenCases.openCases[0].caseNumber).toBe('74500000');
 
     const sukiCases = await parseAccountSupportCases(mockApp, 'Suki');
-    expect(sukiCases.length).toBe(0);
+    expect(sukiCases.openCases.length).toBe(0);
   });
 
   it('prioritizes dedicated customer extract file over dashboard', async () => {
@@ -216,11 +216,49 @@ open_cases: 1
     };
 
     const commureCases = await parseAccountSupportCases(mockApp, 'Commure');
-    expect(commureCases.length).toBe(1);
-    expect(commureCases[0].caseNumber).toBe('74204836');
-    expect(commureCases[0].priority).toBe('P2');
-    expect(commureCases[0].product).toBe('Cloud SQL for PostgreSQL');
-    expect(commureCases[0].filePath).toBe('Reporting/Support Cases/customer/Commure.md');
+    expect(commureCases.openCases.length).toBe(1);
+    expect(commureCases.openCases[0].caseNumber).toBe('74204836');
+    expect(commureCases.openCases[0].priority).toBe('P2');
+    expect(commureCases.openCases[0].product).toBe('Cloud SQL for PostgreSQL');
+    expect(commureCases.filePath).toBe('Reporting/Support Cases/customer/Commure.md');
+  });
+
+  it('parses both active and historical resolved cases from customer extract', async () => {
+    const custFile = Object.create(TFile.prototype);
+    custFile.path = 'Reporting/Support Cases/customer/Suki.md';
+    custFile.basename = 'Suki';
+
+    const custContent = `---
+type: support-cases-extract
+customer: Suki
+open_cases: 0
+resolved_cases: 1
+---
+# Support Cases — Suki
+
+> **Status:** 🟢 No open P0–P2 support cases active · 1 historical resolved.
+
+## 📜 Recently Resolved Cases (Historical)
+
+| Case | Priority | Product | Resolved Date | Owner | Notes |
+|---|---|---|---|---|---|
+| [67207853](https://goto.corp.google.com/vgo/67207853) | 🟡 P2 | Cloud Healthcare API | 2026-01-31 | cinderellaa | Approved 1.5x quota (90K) · Closed |
+`;
+
+    const mockApp: any = {
+      vault: {
+        getMarkdownFiles: () => [custFile],
+        getAbstractFileByPath: () => null,
+        cachedRead: async (f: any) => (f === custFile ? custContent : ''),
+      },
+    };
+
+    const sukiCases = await parseAccountSupportCases(mockApp, 'Suki');
+    expect(sukiCases.openCases.length).toBe(0);
+    expect(sukiCases.resolvedCases.length).toBe(1);
+    expect(sukiCases.resolvedCases[0].caseNumber).toBe('67207853');
+    expect(sukiCases.resolvedCases[0].resolvedDate).toBe('2026-01-31');
+    expect(sukiCases.resolvedCases[0].isResolved).toBe(true);
   });
 });
 
