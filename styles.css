@@ -856,68 +856,267 @@
   line-height: 1.4;
 }
 
-/* Commercial & Support Intelligence Banner */
-.rolodex-intel-container {
-  margin: 0.35rem 0 0.6rem 0;
+/* Cockpit Grid (Ecosystem Network Graph + Intelligence Panel side-by-side) */
+.rolodex-cockpit-grid {
+  display: block;
+  margin: 0.45rem 0 0.65rem 0;
 }
 
-.rolodex-intel-banner {
+.rolodex-cockpit-grid.has-intel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.15fr);
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+@media (max-width: 680px) {
+  .rolodex-cockpit-grid.has-intel {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rolodex-cockpit-grid .rolodex-ecosystem-section {
+  margin: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.rolodex-cockpit-intel-col {
+  min-width: 0;
+}
+
+.rolodex-intel-panel {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  height: 100%;
+  box-sizing: border-box;
+  max-height: 290px;
+  overflow-y: auto;
 }
 
-.rolodex-intel-badge {
-  display: inline-flex;
+.rolodex-intel-block {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0.4rem 0.55rem;
+}
+
+.rolodex-intel-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.rolodex-intel-block-title {
+  display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: var(--radius-s);
+  font-weight: 600;
   font-size: var(--font-ui-smaller);
-  font-weight: 500;
-  line-height: 1.3;
-}
-
-.rolodex-intel-badge.is-warning {
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  color: var(--text-error);
-}
-
-.rolodex-intel-badge.is-pipeline {
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.25);
   color: var(--text-normal);
-  cursor: pointer;
-  transition: all 0.15s ease;
 }
 
-.rolodex-intel-badge.is-pipeline:hover {
-  background: rgba(59, 130, 246, 0.16);
-  border-color: rgba(59, 130, 246, 0.45);
+.rolodex-intel-title-text {
+  letter-spacing: -0.01em;
 }
 
-.rolodex-intel-badge-title {
-  font-weight: 600;
-}
-
-.rolodex-intel-pipeline-total {
-  font-weight: 600;
-}
-
-.rolodex-intel-missing-workload {
+.rolodex-case-count-chip {
+  background: rgba(239, 68, 68, 0.15);
   color: var(--text-error);
   font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
-  margin-left: 0.3rem;
+  font-size: calc(var(--font-ui-smaller) * 0.85);
+  padding: 0.05rem 0.35rem;
 }
 
-.rolodex-intel-link {
+.rolodex-intel-cases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.rolodex-case-card {
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.rolodex-case-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--font-ui-smaller);
+}
+
+.rolodex-case-num-link {
+  font-weight: 600;
   color: var(--text-accent);
   text-decoration: underline;
   cursor: pointer;
+}
+
+.rolodex-case-pri-badge {
+  font-size: calc(var(--font-ui-smaller) * 0.8);
+  font-weight: 700;
+  padding: 0.05rem 0.25rem;
+  border-radius: var(--radius-s);
+  text-transform: uppercase;
+}
+
+.rolodex-case-pri-badge.is-p0 {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--text-error);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.rolodex-case-pri-badge.is-p1 {
+  background: rgba(249, 115, 22, 0.2);
+  color: #ea580c;
+  border: 1px solid rgba(249, 115, 22, 0.5);
+}
+
+.rolodex-case-pri-badge.is-p2 {
+  background: rgba(234, 179, 8, 0.2);
+  color: #ca8a04;
+  border: 1px solid rgba(234, 179, 8, 0.5);
+}
+
+.rolodex-case-age {
+  font-size: calc(var(--font-ui-smaller) * 0.85);
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.rolodex-case-details {
+  font-size: calc(var(--font-ui-smaller) * 0.85);
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rolodex-case-product {
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.rolodex-pipeline-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.3rem;
+  font-size: var(--font-ui-smaller);
+  flex-wrap: wrap;
+}
+
+.rolodex-pipeline-total-val {
+  font-weight: 700;
+  color: var(--text-accent);
+  font-size: var(--font-ui-small);
+}
+
+.rolodex-pipeline-opp-count {
+  color: var(--text-muted);
+  font-size: calc(var(--font-ui-smaller) * 0.9);
+}
+
+.rolodex-missing-wl-chip {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--text-error);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+  font-size: calc(var(--font-ui-smaller) * 0.85);
+}
+
+.rolodex-intel-opp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 120px;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.rolodex-opp-card {
+  padding: 0.25rem 0.35rem;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.rolodex-opp-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.rolodex-opp-name {
+  font-weight: 500;
+  font-size: calc(var(--font-ui-smaller) * 0.95);
+  color: var(--text-accent);
+  text-decoration: underline;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 65%;
+  cursor: pointer;
+}
+
+.rolodex-opp-amount {
+  font-weight: 600;
+  font-size: calc(var(--font-ui-smaller) * 0.95);
+  color: var(--text-normal);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+
+.rolodex-opp-bottom {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: calc(var(--font-ui-smaller) * 0.8);
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+}
+
+.rolodex-opp-stage {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rolodex-opp-missing-badge {
+  color: var(--text-error);
+  font-weight: 600;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.rolodex-intel-block-footer {
+  margin-top: 0.25rem;
+  text-align: right;
+}
+
+.rolodex-intel-dashboard-link {
+  font-size: calc(var(--font-ui-smaller) * 0.85);
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.rolodex-intel-dashboard-link:hover {
+  color: var(--text-accent);
+  text-decoration: underline;
 }
 
 /* Existing 2x2 Reports Shelf */

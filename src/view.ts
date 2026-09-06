@@ -645,12 +645,13 @@ export class RolodexView extends ItemView {
     stats.createSpan({ text: `in ${e.noteCount} notes` });
     stats.createSpan({ text: `${e.firstSeen || '?'} → ${e.lastSeen || '?'}` });
 
-    // Commercial & Support Intelligence Pulse (from Support Cases.md & Workloads.md)
-    const intelContainer = root.createDiv({ cls: 'rolodex-intel-container' });
-    void this.loadCommercialAndSupportPulse(intelContainer, e);
+    // Cockpit Grid: Ecosystem Network Graph (left) & Commercial/Support Intelligence (right)
+    const cockpitGrid = root.createDiv({ cls: 'rolodex-cockpit-grid' });
+    const graphCol = cockpitGrid.createDiv({ cls: 'rolodex-cockpit-graph-col' });
+    const intelCol = cockpitGrid.createDiv({ cls: 'rolodex-cockpit-intel-col' });
 
     // Ecosystem Network Graph & Connected Entities
-    renderEcosystemNetwork(root, e, this.plugin.index, {
+    renderEcosystemNetwork(graphCol, e, this.plugin.index, {
       onSelectEntity: (k) => {
         this.selected = k;
         this.summary = null;
@@ -678,34 +679,60 @@ export class RolodexView extends ItemView {
       },
     });
 
+    void this.loadCommercialAndSupportPulse(cockpitGrid, intelCol, e);
+
     this.renderAiControls(root, e);
     this.renderTasks(root, e);
     this.renderActivity(root, e);
   }
 
-  private async loadCommercialAndSupportPulse(container: HTMLElement, e: EntityRecord) {
-    if (e.type.toLowerCase() !== 'customer') return;
+  private async loadCommercialAndSupportPulse(
+    cockpitGrid: HTMLElement,
+    intelCol: HTMLElement,
+    e: EntityRecord,
+  ) {
+    if (e.type.toLowerCase() !== 'customer') {
+      intelCol.remove();
+      return;
+    }
 
     const [cases, pipeline] = await Promise.all([
       parseAccountSupportCases(this.app, e.name),
       parseAccountWorkloads(this.app, e.name),
     ]);
 
-    if (cases.length === 0 && !pipeline) return;
+    const hasPipeline = !!(pipeline && (pipeline.opps.length > 0 || pipeline.totalPipeline > 0));
+    const hasCases = cases.length > 0;
 
-    container.empty();
-    const banner = container.createDiv({ cls: 'rolodex-intel-banner' });
+    if (!hasCases && !hasPipeline) {
+      intelCol.remove();
+      return;
+    }
 
-    if (cases.length > 0) {
-      const caseBadge = banner.createDiv({ cls: 'rolodex-intel-badge is-warning' });
-      caseBadge.createSpan({
-        text: `🚨 ${cases.length} Open Support ${cases.length === 1 ? 'Case' : 'Cases'}:`,
-        cls: 'rolodex-intel-badge-title',
+    cockpitGrid.addClass('has-intel');
+    intelCol.empty();
+
+    const panel = intelCol.createDiv({ cls: 'rolodex-intel-panel' });
+
+    // 1. Cases (if open at top)
+    if (hasCases) {
+      const casesBlock = panel.createDiv({ cls: 'rolodex-intel-block is-cases' });
+      const head = casesBlock.createDiv({ cls: 'rolodex-intel-block-header' });
+      const title = head.createDiv({ cls: 'rolodex-intel-block-title' });
+      title.createSpan({ text: '🚨 Support Cases', cls: 'rolodex-intel-title-text' });
+      title.createSpan({
+        text: `${cases.length} open`,
+        cls: 'rolodex-chip is-mini rolodex-case-count-chip',
       });
+
+      const list = casesBlock.createDiv({ cls: 'rolodex-intel-cases-list' });
       for (const c of cases) {
-        const link = caseBadge.createEl('a', {
-          text: `#${c.caseNumber} (${c.priority} · ${c.product} · ${c.age})`,
-          cls: 'rolodex-intel-link',
+        const card = list.createDiv({ cls: 'rolodex-case-card' });
+        const top = card.createDiv({ cls: 'rolodex-case-card-top' });
+
+        const link = top.createEl('a', {
+          text: `#${c.caseNumber}`,
+          cls: 'rolodex-case-num-link',
           attr: { title: `${c.status} (Owner: ${c.owner})` },
         });
         link.addEventListener('click', (ev) => {
@@ -713,20 +740,46 @@ export class RolodexView extends ItemView {
           if (c.url) window.open(c.url, '_blank');
           else void this.app.workspace.openLinkText('Reporting/Dashboards/Support Cases.md', '', false);
         });
+
+        top.createSpan({
+          text: c.priority,
+          cls: `rolodex-case-pri-badge is-${c.priority.toLowerCase()}`,
+        });
+
+        if (c.age) {
+          top.createSpan({ text: c.age, cls: 'rolodex-case-age' });
+        }
+
+        const bottom = card.createDiv({ cls: 'rolodex-case-details' });
+        bottom.createSpan({ text: c.product, cls: 'rolodex-case-product' });
+        if (c.owner) {
+          bottom.createSpan({ text: ` · ${c.owner}`, cls: 'rolodex-case-owner' });
+        }
       }
     }
 
-    if (pipeline) {
-      const pipeBadge = banner.createDiv({ cls: 'rolodex-intel-badge is-pipeline' });
-      pipeBadge.createSpan({
-        text: `💼 Pipeline: ${pipeline.totalPipelineFormatted} (${pipeline.opps.length} ${pipeline.opps.length === 1 ? 'opp' : 'opps'})`,
-        cls: 'rolodex-intel-pipeline-total',
+    // 2. Followed by Pipeline
+    if (pipeline && hasPipeline) {
+      const pipeBlock = panel.createDiv({ cls: 'rolodex-intel-block is-pipeline' });
+      const head = pipeBlock.createDiv({ cls: 'rolodex-intel-block-header' });
+      const title = head.createDiv({ cls: 'rolodex-intel-block-title' });
+      title.createSpan({ text: '💼 Pipeline', cls: 'rolodex-intel-title-text' });
+
+      const sumRow = pipeBlock.createDiv({ cls: 'rolodex-pipeline-summary-bar' });
+      sumRow.createSpan({
+        text: pipeline.totalPipelineFormatted,
+        cls: 'rolodex-pipeline-total-val',
+      });
+      sumRow.createSpan({
+        text: `(${pipeline.opps.length} ${pipeline.opps.length === 1 ? 'opp' : 'opps'})`,
+        cls: 'rolodex-pipeline-opp-count',
       });
 
       if (pipeline.missingWorkloadCount > 0) {
-        const warn = pipeBadge.createSpan({
-          text: `🔴 ${pipeline.missingWorkloadCount} missing ${pipeline.missingWorkloadCount === 1 ? 'workload' : 'workloads'}`,
-          cls: 'rolodex-intel-missing-workload',
+        const warn = sumRow.createSpan({
+          text: `🔴 ${pipeline.missingWorkloadCount} missing WL`,
+          cls: 'rolodex-chip is-mini rolodex-missing-wl-chip',
+          attr: { title: 'Missing workloads detected. Click to open Workloads.md' },
         });
         warn.addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -734,11 +787,43 @@ export class RolodexView extends ItemView {
         });
       }
 
-      const oppSummary = pipeline.opps
-        .map((o) => `• ${o.name}: ${o.amountFormatted} (${o.stage})`)
-        .join('\n');
-      pipeBadge.setAttribute('title', `Open Opportunities:\n${oppSummary}\n\nClick to open Workloads.md`);
-      pipeBadge.addEventListener('click', () => {
+      if (pipeline.opps.length > 0) {
+        const oppList = pipeBlock.createDiv({ cls: 'rolodex-intel-opp-list' });
+        for (const opp of pipeline.opps) {
+          const card = oppList.createDiv({ cls: 'rolodex-opp-card' });
+          const oppTop = card.createDiv({ cls: 'rolodex-opp-top' });
+
+          const link = oppTop.createEl('a', {
+            text: opp.name,
+            cls: 'rolodex-opp-name',
+            attr: { title: `${opp.name} (${opp.stage})` },
+          });
+          link.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            if (opp.url) window.open(opp.url, '_blank');
+            else void this.app.workspace.openLinkText('Reporting/Dashboards/Workloads.md', '', false);
+          });
+
+          oppTop.createSpan({ text: opp.amountFormatted, cls: 'rolodex-opp-amount' });
+
+          const oppBottom = card.createDiv({ cls: 'rolodex-opp-bottom' });
+          oppBottom.createSpan({ text: opp.stage, cls: 'rolodex-opp-stage' });
+          if (opp.closeDate) {
+            oppBottom.createSpan({ text: ` · Closes ${opp.closeDate}`, cls: 'rolodex-opp-date' });
+          }
+          if (opp.isMissingWorkload) {
+            oppBottom.createSpan({ text: '🔴 No WL', cls: 'rolodex-opp-missing-badge' });
+          }
+        }
+      }
+
+      const foot = pipeBlock.createDiv({ cls: 'rolodex-intel-block-footer' });
+      const dashLink = foot.createEl('a', {
+        text: 'Workloads.md ↗',
+        cls: 'rolodex-intel-dashboard-link',
+      });
+      dashLink.addEventListener('click', (ev) => {
+        ev.preventDefault();
         void this.app.workspace.openLinkText('Reporting/Dashboards/Workloads.md', '', false);
       });
     }
