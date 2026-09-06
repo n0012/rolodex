@@ -22,7 +22,9 @@ export interface GraphLayoutNode extends ConnectedNode {
 export interface GraphCallbacks {
   onSelectEntity: (key: string) => void;
   onOpenNote: (pathOrTitle: string) => void;
+  onCreateContact?: (name: string, company?: string) => Promise<void> | void;
   getNoteTitle?: (target: string) => string | null;
+  hasNote?: (target: string) => boolean;
   currentMode?: 'graph' | 'chips';
   onToggleMode?: (mode: 'graph' | 'chips') => void;
 }
@@ -120,6 +122,15 @@ export function getConnectedNodes(
       }
 
       if (matchedEntity && resolvedKey) {
+        // Suppress cross-customer links unless strong relationship (count >= 4)
+        if (
+          entity.type.toLowerCase() === 'customer' &&
+          matchedEntity.type.toLowerCase() === 'customer' &&
+          count < 4
+        ) {
+          continue;
+        }
+
         const existing = nodeMap.get(resolvedKey);
         if (existing) {
           existing.count += count;
@@ -184,6 +195,16 @@ export function getConnectedNodes(
       const other = index?.entities.get(k);
       const rawType = other?.type || k.split('/')[0] || 'Other';
       const normType = normalizeType(rawType);
+
+      // Suppress cross-customer links unless strong relationship (count >= 4)
+      if (
+        entity.type.toLowerCase() === 'customer' &&
+        normType.toLowerCase() === 'customer' &&
+        count < 4
+      ) {
+        continue;
+      }
+
       const displayName = other?.name || toTitleCase(k.split('/')[1] || k);
 
       const existing = nodeMap.get(k);
@@ -368,7 +389,12 @@ function renderChipsView(
       if (node.isEntity) {
         callbacks.onSelectEntity(node.key);
       } else {
-        callbacks.onOpenNote(node.targetPath || node.name);
+        const hasNote = callbacks.hasNote ? callbacks.hasNote(node.targetPath || node.name) : !!node.targetPath;
+        if (!hasNote && callbacks.onCreateContact) {
+          void callbacks.onCreateContact(node.name);
+        } else {
+          callbacks.onOpenNote(node.targetPath || node.name);
+        }
       }
     });
   }
@@ -575,6 +601,12 @@ function renderSvgGraphView(
         if (el !== g) el.classList.add('is-dimmed');
       }
 
+      let hint = '⚡ Click to drill in';
+      if (!node.isEntity) {
+        const hasNote = callbacks.hasNote ? callbacks.hasNote(node.targetPath || node.name) : !!node.targetPath;
+        hint = hasNote ? '📄 Click to open contact note' : '➕ Click to create Contact note in Obsidian';
+      }
+
       const { icon } = getTypeColors(node.type);
       tooltip.innerHTML = `
         <div class="rolodex-tooltip-header">
@@ -584,7 +616,7 @@ function renderSvgGraphView(
           <span class="rolodex-tooltip-count">${node.count} shared touches</span>
         </div>
         <div class="rolodex-tooltip-title">${node.name}</div>
-        <div class="rolodex-tooltip-hint">${node.isEntity ? '⚡ Click to drill in' : '📄 Click to open note'}</div>
+        <div class="rolodex-tooltip-hint">${hint}</div>
       `;
       tooltip.style.left = `${(node.x / width) * 100}%`;
       tooltip.style.top = `${(node.y / height) * 100}%`;
@@ -612,7 +644,12 @@ function renderSvgGraphView(
       if (node.isEntity) {
         callbacks.onSelectEntity(node.key);
       } else {
-        callbacks.onOpenNote(node.targetPath || node.name);
+        const hasNote = callbacks.hasNote ? callbacks.hasNote(node.targetPath || node.name) : !!node.targetPath;
+        if (!hasNote && callbacks.onCreateContact) {
+          void callbacks.onCreateContact(node.name, entity.name);
+        } else {
+          callbacks.onOpenNote(node.targetPath || node.name);
+        }
       }
     });
 

@@ -19,6 +19,7 @@ import {
   appendTaskToNote,
   reclassifyTagInVault,
   saveTwoByTwoReport,
+  createOrOpenContactNote,
 } from './actions';
 import type { TaskUpdateProposal } from './actions';
 import { daysAgoIso, todayIso } from './parse';
@@ -648,6 +649,14 @@ export class RolodexView extends ItemView {
       },
       onOpenNote: (pathOrTitle) => {
         void this.app.workspace.openLinkText(pathOrTitle, '', false);
+      },
+      hasNote: (target) => {
+        return !!this.app.metadataCache.getFirstLinkpathDest(target, '');
+      },
+      onCreateContact: async (name, company) => {
+        const path = await createOrOpenContactNote(this.app, name, company);
+        new Notice(`Created contact note: ${name}`);
+        await this.app.workspace.openLinkText(path, '', false);
       },
       getNoteTitle: (target) => {
         const file = this.app.metadataCache.getFirstLinkpathDest(target, '');

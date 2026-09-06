@@ -66,7 +66,7 @@ describe('getConnectedNodes', () => {
       ['link/pasted image 123.png', 4], // Image attachment - should be filtered
       ['link/2026-08-12', 3], // Date - should be filtered
       ['link/amgen', 5], // Self link - should be filtered
-      ['customer/suki', 2], // Related customer
+      ['customer/suki', 5], // Related customer with strong co-occurrence (>= 4)
     ]),
     noteCount: 15,
     lastSeen: '2026-09-04',
@@ -168,6 +168,33 @@ describe('getConnectedNodes', () => {
     expect(nodes[0].name).toBe('David Pichardo');
     expect(nodes[0].count).toBe(12); // Merged 5 + 7
     expect(nodes[0].type).toBe('Stakeholder');
+  });
+
+  it('suppresses cross-customer links with weak co-occurrence (< 4 touches)', () => {
+    const entityWithWeakCustomer: EntityRecord = {
+      ...dummyEntity,
+      related: new Map([
+        ['partner/altimetrik', 5],
+        ['customer/suki', 3], // count < 4
+      ]),
+    };
+    const nodes = getConnectedNodes(entityWithWeakCustomer, dummyIndex);
+    expect(nodes.find(n => n.name === 'Suki')).toBeUndefined();
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].name).toBe('Altimetrik');
+  });
+
+  it('retains cross-customer links when co-occurrence is strong (>= 4 touches)', () => {
+    const entityWithStrongCustomer: EntityRecord = {
+      ...dummyEntity,
+      related: new Map([
+        ['partner/altimetrik', 5],
+        ['customer/suki', 4], // count >= 4
+      ]),
+    };
+    const nodes = getConnectedNodes(entityWithStrongCustomer, dummyIndex);
+    expect(nodes.find(n => n.name === 'Suki')).toBeDefined();
+    expect(nodes.find(n => n.name === 'Suki')?.count).toBe(4);
   });
 });
 

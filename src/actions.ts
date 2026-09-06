@@ -288,3 +288,82 @@ export async function saveTwoByTwoReport(
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+/**
+ * Creates or opens a dedicated Contact note for a stakeholder,
+ * linking them to their customer/company in the Obsidian graph.
+ */
+export async function createOrOpenContactNote(
+  app: App,
+  name: string,
+  company?: string,
+  email?: string
+): Promise<string> {
+  const safeName = name.replace(/[\\/:*?"<>|]/g, '').trim();
+  const folder = 'Wiki/People';
+  const targetPath = `${folder}/${safeName}.md`;
+  const adapter = app.vault.adapter;
+
+  // Check if note already exists anywhere in vault
+  const existingFile = app.metadataCache.getFirstLinkpathDest(safeName, '');
+  if (existingFile instanceof TFile) {
+    return existingFile.path;
+  }
+
+  // Ensure directory exists
+  const parts = folder.split('/');
+  let current = '';
+  for (const p of parts) {
+    current = current ? `${current}/${p}` : p;
+    if (!(await adapter.exists(current))) {
+      await adapter.mkdir(current);
+    }
+  }
+
+  const tags = ['Person'];
+  if (company) tags.push(`Contact/${company.replace(/\s+/g, '_')}`);
+
+  const frontmatter = [
+    '---',
+    `type: Contact`,
+    `name: ${safeName}`,
+    company ? `company: "[[${company}]]"` : null,
+    email ? `email: ${email}` : null,
+    `tags:`,
+    ...tags.map((t) => `  - ${t}`),
+    '---',
+    '',
+  ]
+    .filter((l): l is string => l !== null)
+    .join('\n');
+
+  const body = [
+    `# ${safeName}`,
+    company ? `**Company:** [[${company}]]` : '',
+    email ? `**Email:** \`${email}\`` : '',
+    '',
+    `## 📋 Open Tasks & Deliverables`,
+    '```tasks',
+    'not done',
+    `description includes ${safeName}`,
+    '```',
+    '',
+    `## 🤝 Recent Interactions`,
+    '```dataview',
+    'TABLE WITHOUT ID',
+    '  file.link as "Meeting Note",',
+    '  file.day as "Date"',
+    'FROM "~Daily"',
+    `WHERE contains(file.text, "${safeName}")`,
+    'SORT file.day DESC',
+    'LIMIT 10',
+    '```',
+    '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const fileContent = `${frontmatter}\n${body}\n`;
+  await app.vault.create(targetPath, fileContent);
+  return targetPath;
+}

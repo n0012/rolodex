@@ -44,3 +44,67 @@ describe('tryDeterministicCommand', () => {
     expect(res?.reclassify?.newType).toBe('Conference');
   });
 });
+
+describe('createOrOpenContactNote', () => {
+  it('creates contact note with frontmatter, tags, company, and query blocks', async () => {
+    const { createOrOpenContactNote } = await import('../src/actions');
+    const createdFiles: Record<string, string> = {};
+    const createdDirs: string[] = [];
+
+    const mockApp: any = {
+      metadataCache: {
+        getFirstLinkpathDest: (path: string) => null,
+      },
+      vault: {
+        adapter: {
+          exists: async (p: string) => createdDirs.includes(p),
+          mkdir: async (p: string) => { createdDirs.push(p); },
+        },
+        create: async (p: string, content: string) => {
+          createdFiles[p] = content;
+          return { path: p };
+        },
+      },
+    };
+
+    const targetPath = await createOrOpenContactNote(mockApp, 'David Pichardo', 'Amgen', 'dpichardo@google.com');
+    expect(targetPath).toBe('Wiki/People/David Pichardo.md');
+    expect(createdDirs).toEqual(['Wiki', 'Wiki/People']);
+    expect(createdFiles[targetPath]).toBeDefined();
+    const content = createdFiles[targetPath];
+    expect(content).toContain('type: Contact');
+    expect(content).toContain('name: David Pichardo');
+    expect(content).toContain('company: "[[Amgen]]"');
+    expect(content).toContain('email: dpichardo@google.com');
+    expect(content).toContain('- Person');
+    expect(content).toContain('- Contact/Amgen');
+    expect(content).toContain('# David Pichardo');
+    expect(content).toContain('**Company:** [[Amgen]]');
+    expect(content).toContain('description includes David Pichardo');
+    expect(content).toContain('WHERE contains(file.text, "David Pichardo")');
+  });
+
+  it('returns existing file path if note already exists in vault', async () => {
+    const { createOrOpenContactNote } = await import('../src/actions');
+    const { TFile } = await import('obsidian');
+
+    const fakeExistingFile = Object.create(TFile.prototype);
+    fakeExistingFile.path = 'Wiki/People/Existing Person.md';
+
+    const mockApp: any = {
+      metadataCache: {
+        getFirstLinkpathDest: (path: string) => {
+          if (path === 'Existing Person') return fakeExistingFile;
+          return null;
+        },
+      },
+      vault: {
+        adapter: {},
+        create: async () => {},
+      },
+    };
+
+    const targetPath = await createOrOpenContactNote(mockApp, 'Existing Person', 'Amgen');
+    expect(targetPath).toBe('Wiki/People/Existing Person.md');
+  });
+});
