@@ -1180,5 +1180,179 @@
   transform: translateY(-1px);
 }
 
+/* Vector Workload Hygiene Action Styles */
+.rolodex-opp-fix-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 3px 6px;
+  background: var(--background-secondary-alt);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+}
 
+.rolodex-opp-fix-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
 
+.rolodex-fix-vector-btn {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.rolodex-fix-vector-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Vector Remediation Modal */
+.rolodex-vector-modal-container {
+  padding: 1rem 1.25rem;
+  max-width: 650px;
+}
+
+.rolodex-vector-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.rolodex-vector-modal-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.rolodex-vector-modal-intro {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.rolodex-vector-details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.rolodex-vector-details-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.rolodex-vector-row-label {
+  font-weight: 600;
+  color: var(--text-muted);
+  flex: 0 0 140px;
+}
+
+.rolodex-vector-row-value {
+  color: var(--text-normal);
+  text-align: right;
+  word-break: break-word;
+}
+
+.rolodex-vector-row-value.is-link {
+  color: var(--text-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.rolodex-vector-cmd-section {
+  margin-bottom: 1rem;
+}
+
+.rolodex-vector-cmd-section h4 {
+  margin: 0 0 0.35rem 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rolodex-vector-cmd-box {
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0.5rem 0.65rem;
+  margin: 0;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.rolodex-vector-output-box {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 1rem;
+  font-size: 11px;
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.rolodex-vector-status-running {
+  color: var(--text-accent);
+  font-weight: 500;
+}
+
+.rolodex-vector-status-error {
+  color: var(--text-error, #f87171);
+}
+
+.rolodex-vector-status-success {
+  color: var(--text-success, #4ade80);
+  font-weight: 500;
+}
+
+.rolodex-vector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.rolodex-vector-action-btn {
+  cursor: pointer;
+  padding: 0.35rem 0.75rem;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.rolodex-vector-action-btn.is-accent {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}

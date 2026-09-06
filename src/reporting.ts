@@ -40,6 +40,7 @@ export interface AccountSupportCases {
 }
 
 export interface WorkloadOpportunity {
+  id?: string;
   name: string;
   url: string;
   amount: number;
@@ -48,6 +49,8 @@ export interface WorkloadOpportunity {
   stage: string;
   type: string;
   isMissingWorkload: boolean;
+  suggestedFix?: string;
+  fixCommand?: string;
 }
 
 export interface AccountPipeline {
@@ -375,27 +378,51 @@ export async function parseAccountWorkloads(app: App, accountName: string): Prom
     const lines = content.split('\n');
 
     let inActiveOpps = false;
+    let inFixesSection = false;
+    const fixMap = new Map<string, { fix: string; cmd: string }>();
+
     for (const line of lines) {
-      if (line.startsWith('## 💼 Active Opportunities')) {
+      if (line.startsWith('## 🛠️ Suggested Vector Fixes') || line.includes('Suggested Vector Fixes')) {
+        inFixesSection = true;
+        inActiveOpps = false;
+        continue;
+      } else if (line.startsWith('## 💼 Active Opportunities') || line.includes('Active Opportunities')) {
         inActiveOpps = true;
+        inFixesSection = false;
         continue;
       } else if (line.startsWith('## ')) {
         inActiveOpps = false;
+        inFixesSection = false;
+      }
+
+      if (inFixesSection && line.startsWith('|')) {
+        const cols = line.split('|').map(c => c.trim()).slice(1, -1);
+        if (cols.length >= 4 && cols[0].toLowerCase() !== 'opportunity' && !cols[0].startsWith('---') && !cols[0].startsWith(':--')) {
+          const oppCol = cols[0];
+          const linkMatch = oppCol.match(/\[([^\]]+)\]\(([^)]+)\)/);
+          const oppName = (linkMatch ? linkMatch[1] : oppCol).toLowerCase();
+          const fixText = cols[2];
+          const cmdRaw = cols[3].replace(/^`|`$/g, '').trim();
+          fixMap.set(oppName, { fix: fixText, cmd: cmdRaw });
+        }
+        continue;
       }
 
       if (!inActiveOpps || !line.startsWith('|')) continue;
       const cols = line.split('|').map(c => c.trim()).slice(1, -1);
-      if (cols.length < 5 || cols[0].toLowerCase().includes('opportunity') || cols[0].startsWith('---') || cols[0].startsWith(':--')) continue;
+      if (cols.length < 5 || cols[0].toLowerCase() === 'opportunity' || cols[0].startsWith('---') || cols[0].startsWith(':--')) continue;
 
       const oppCol = cols[0];
       const amountCol = cols[1];
       const stageCol = cols[2];
       const closeCol = cols[3];
       const statusCol = cols[5] || '';
+      const suggestedFixCol = cols[6] || '';
 
       const linkMatch = oppCol.match(/\[([^\]]+)\]\(([^)]+)\)/);
       const oppName = linkMatch ? linkMatch[1] : oppCol;
       const oppUrl = linkMatch ? linkMatch[2] : '';
+      const oppId = oppUrl.match(/\/Opportunity\/([A-Za-z0-9]+)/)?.[1];
 
       const isMissing = statusCol.includes('Missing Workload') || statusCol.includes('No WL');
 
@@ -410,6 +437,7 @@ export async function parseAccountWorkloads(app: App, accountName: string): Prom
       }
 
       opps.push({
+        id: oppId,
         name: oppName,
         url: oppUrl,
         amount,
@@ -418,10 +446,26 @@ export async function parseAccountWorkloads(app: App, accountName: string): Prom
         stage: stageCol,
         type: '',
         isMissingWorkload: isMissing,
+        suggestedFix: suggestedFixCol && suggestedFixCol !== '-' ? suggestedFixCol : undefined,
       });
     }
 
     if (opps.length > 0) {
+      // Reconcile fixMap commands and fallback defaults
+      for (const opp of opps) {
+        const fixInfo = fixMap.get(opp.name.toLowerCase());
+        if (fixInfo) {
+          if (!opp.suggestedFix) opp.suggestedFix = fixInfo.fix;
+          if (!opp.fixCommand) opp.fixCommand = fixInfo.cmd;
+        }
+        if (!opp.suggestedFix && opp.isMissingWorkload) {
+          opp.suggestedFix = `Create Workload (${opp.amountFormatted} ARR · Stage: 0-2)`;
+        }
+        if (!opp.fixCommand && opp.id && opp.isMissingWorkload) {
+          opp.fixCommand = `python3 ~/.gemini/skills/ce-workload-advisor/scripts/workload_hygiene.py --id ${opp.id} --arr ${Math.round(opp.amount)} --stage "0-2: Tech Eval/Solution Dev" --production-date ${opp.closeDate} --next-steps "Initial technical evaluation and architecture kickoff"`;
+        }
+      }
+
       const totalPipeline = opps.reduce((sum, o) => sum + o.amount, 0);
       const totalPipelineFormatted = totalPipeline >= 1_000_000
         ? `$${(totalPipeline / 1_000_000).toFixed(2)}M`
@@ -498,11 +542,26 @@ export async function parseAccountWorkloads(app: App, accountName: string): Prom
     const amount = parseFloat(numClean) || 0;
 
     const key = oppName.toLowerCase();
+    const oppId = oppUrl.match(/\/Opportunity\/([A-Za-z0-9]+)/)?.[1];
     const existing = oppMap.get(key);
     if (existing) {
-      if (isMissingWorkloadSection) existing.isMissingWorkload = true;
+      if (isMissingWorkloadSection) {
+        existing.isMissingWorkload = true;
+        if (!existing.suggestedFix) {
+          existing.suggestedFix = `Create Workload (${existing.amountFormatted} ARR · Stage: 0-2)`;
+        }
+        if (!existing.fixCommand && existing.id) {
+          existing.fixCommand = `python3 ~/.gemini/skills/ce-workload-advisor/scripts/workload_hygiene.py --id ${existing.id} --arr ${Math.round(existing.amount)} --stage "0-2: Tech Eval/Solution Dev" --production-date ${existing.closeDate} --next-steps "Initial technical evaluation and architecture kickoff"`;
+        }
+      }
     } else {
+      const suggestedFix = isMissingWorkloadSection ? `Create Workload (${amountCol} ARR · Stage: 0-2)` : undefined;
+      const fixCommand = (isMissingWorkloadSection && oppId)
+        ? `python3 ~/.gemini/skills/ce-workload-advisor/scripts/workload_hygiene.py --id ${oppId} --arr ${Math.round(amount)} --stage "0-2: Tech Eval/Solution Dev" --production-date ${closeCol.replace(/\*\*/g, '')} --next-steps "Initial technical evaluation and architecture kickoff"`
+        : undefined;
+
       oppMap.set(key, {
+        id: oppId,
         name: oppName,
         url: oppUrl,
         amount,
@@ -511,6 +570,8 @@ export async function parseAccountWorkloads(app: App, accountName: string): Prom
         stage: stageCol,
         type: typeCol,
         isMissingWorkload: isMissingWorkloadSection,
+        suggestedFix,
+        fixCommand,
       });
     }
   }

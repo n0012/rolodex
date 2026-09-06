@@ -309,7 +309,7 @@ describe('parseAccountWorkloads', () => {
     expect(nonExistent).toBeNull();
   });
 
-  it('prioritizes dedicated customer extract file over dashboard', async () => {
+  it('prioritizes dedicated customer extract file over dashboard and parses suggested fixes', async () => {
     const custFile = Object.create(TFile.prototype);
     custFile.path = 'Reporting/Workloads/customer/Amgen.md';
     custFile.basename = 'Amgen';
@@ -324,10 +324,16 @@ total_pipeline_formatted: "$910K"
 
 ## 💼 Active Opportunities
 
-| Opportunity | Amount | Stage | Close Date | Owner | Workload Status |
-|---|---|---|---|---|---|
-| [Amgen- Wiz (Cloud/Code)- $510k iACV](https://vector.lightning.force.com/opp1) | $510K | 02 - Tech Eval | 2026-07-31 | Security | 🔴 Missing Workload |
-| [Amgen - FoldRun- HPC/AI](https://vector.lightning.force.com/opp4) | $400K | 02 - Tech Eval | 2026-12-31 | davidpichardo | 🟢 Attached |
+| Opportunity | Amount | Stage | Close Date | Owner | Workload Status | Suggested Vector Fix |
+|---|---|---|---|---|---|---|
+| [Amgen- Wiz (Cloud/Code)- $510k iACV](https://vector.lightning.force.com/lightning/r/Opportunity/006Kf00000PP04MIAT/view) | $510K | 02 - Tech Eval | 2026-07-31 | Security | 🔴 Missing Workload | Create Workload ($510K ARR · Stage: 0-2) |
+| [Amgen - FoldRun- HPC/AI](https://vector.lightning.force.com/lightning/r/Opportunity/006Kf00000P8p6uIAB/view) | $400K | 02 - Tech Eval | 2026-12-31 | davidpichardo | 🟢 Attached | - |
+
+## 🛠️ Suggested Vector Fixes & Execution Commands
+
+| Opportunity | Issue | Suggested Vector Fix | Execution Command (Browser / CDP) |
+|---|---|---|---|
+| [Amgen- Wiz (Cloud/Code)- $510k iACV](https://vector.lightning.force.com/lightning/r/Opportunity/006Kf00000PP04MIAT/view) | 🔴 Missing Workload | Create Workload ($510K ARR · Stage: 0-2) | \`python3 ~/.gemini/skills/ce-workload-advisor/scripts/workload_hygiene.py --id 006Kf00000PP04MIAT --arr 510000 --stage "0-2: Tech Eval/Solution Dev" --production-date 2026-07-31 --next-steps "Initial technical evaluation"\` |
 `;
 
     const mockApp: any = {
@@ -346,6 +352,11 @@ total_pipeline_formatted: "$910K"
     expect(pipeline?.missingWorkloadCount).toBe(1);
     expect(pipeline?.filePath).toBe('Reporting/Workloads/customer/Amgen.md');
     expect(pipeline?.opps[0].isMissingWorkload).toBe(true);
+    expect(pipeline?.opps[0].id).toBe('006Kf00000PP04MIAT');
+    expect(pipeline?.opps[0].suggestedFix).toBe('Create Workload ($510K ARR · Stage: 0-2)');
+    expect(pipeline?.opps[0].fixCommand).toContain('workload_hygiene.py --id 006Kf00000PP04MIAT');
     expect(pipeline?.opps[1].isMissingWorkload).toBe(false);
+    expect(pipeline?.opps[1].id).toBe('006Kf00000P8p6uIAB');
   });
 });
+

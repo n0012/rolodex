@@ -1,7 +1,9 @@
 import {
+  App,
   ButtonComponent,
   ItemView,
   MarkdownRenderer,
+  Modal,
   Notice,
   TFile,
   WorkspaceLeaf,
@@ -27,6 +29,7 @@ import {
   parseAccountSupportCases,
   parseAccountWorkloads,
 } from './reporting';
+import type { WorkloadOpportunity } from './reporting';
 import { daysAgoIso, todayIso } from './parse';
 import { buildRows, heat, inWindow, isOverdue, openTasks, sortRows, sortTasks } from './select';
 import type { SortKey, Window } from './select';
@@ -900,6 +903,23 @@ export class RolodexView extends ItemView {
           if (opp.isMissingWorkload) {
             oppBottom.createSpan({ text: '🔴 No WL', cls: 'rolodex-opp-missing-badge' });
           }
+
+          if (opp.suggestedFix) {
+            const oppFixRow = card.createDiv({ cls: 'rolodex-opp-fix-row' });
+            const fixTextEl = oppFixRow.createSpan({
+              text: `💡 ${opp.suggestedFix}`,
+              cls: 'rolodex-opp-fix-text',
+            });
+            fixTextEl.setAttribute('title', opp.suggestedFix);
+            const fixBtn = oppFixRow.createEl('button', {
+              text: '⚡ Fix in Vector',
+              cls: 'rolodex-chip is-mini rolodex-fix-vector-btn',
+            });
+            fixBtn.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              new VectorFixModal(this.app, e.name, opp).open();
+            });
+          }
         }
       }
 
@@ -1479,3 +1499,161 @@ export class RolodexView extends ItemView {
     return other ? other.name : key;
   }
 }
+
+export class VectorFixModal extends Modal {
+  private accountName: string;
+  private opp: WorkloadOpportunity;
+
+  constructor(app: App, accountName: string, opp: WorkloadOpportunity) {
+    super(app);
+    this.accountName = accountName;
+    this.opp = opp;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('rolodex-vector-modal-container');
+
+    // Header
+    const header = contentEl.createDiv({ cls: 'rolodex-vector-modal-header' });
+    header.createEl('h3', { text: '⚡ Vector Workload Remediation' });
+    header.createSpan({ text: 'AI Hygiene Action', cls: 'rolodex-chip is-mini is-accent' });
+
+    // Description / Subtitle
+    contentEl.createEl('p', {
+      text: `Remediate Vector CRM data hygiene for ${this.accountName} via automated browser actions (CDP) or direct CLI execution.`,
+      cls: 'rolodex-vector-modal-intro',
+    });
+
+    // Details Grid
+    const detailsGrid = contentEl.createDiv({ cls: 'rolodex-vector-details-grid' });
+
+    const createRow = (label: string, value: string, isLink = false, href = '') => {
+      const row = detailsGrid.createDiv({ cls: 'rolodex-vector-details-row' });
+      row.createSpan({ text: label, cls: 'rolodex-vector-row-label' });
+      if (isLink && href) {
+        const link = row.createEl('a', { text: value, cls: 'rolodex-vector-row-value is-link' });
+        link.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          window.open(href, '_blank');
+        });
+      } else {
+        row.createSpan({ text: value, cls: 'rolodex-vector-row-value' });
+      }
+    };
+
+    createRow('Account', this.accountName);
+    createRow('Opportunity', this.opp.name, !!this.opp.url, this.opp.url);
+    if (this.opp.id) {
+      createRow('Opportunity ID', this.opp.id);
+    }
+    createRow('Pipeline ARR', this.opp.amountFormatted);
+    createRow('Opportunity Stage', this.opp.stage);
+    createRow('Target Close Date', this.opp.closeDate || 'None');
+    createRow('Workload Status', this.opp.isMissingWorkload ? '🔴 Missing Workload' : '🟡 Review Alignment');
+    createRow('Proposed Fix', this.opp.suggestedFix || 'Create Workload in Vector');
+
+    // Command preview box
+    const cmdSection = contentEl.createDiv({ cls: 'rolodex-vector-cmd-section' });
+    cmdSection.createEl('h4', { text: 'Execution Command (Browser / CDP Automation)' });
+    const cmdBox = cmdSection.createEl('pre', { cls: 'rolodex-vector-cmd-box' });
+    const cmdText = this.opp.fixCommand || `python3 ~/.gemini/skills/ce-workload-advisor/scripts/workload_hygiene.py --id ${this.opp.id || '<OPP_ID>'} --arr ${Math.round(this.opp.amount)} --stage "0-2: Tech Eval/Solution Dev" --production-date ${this.opp.closeDate} --next-steps "Initial technical evaluation and architecture kickoff"`;
+    cmdBox.createEl('code', { text: cmdText });
+
+    // Output / log container for live execution
+    const outputBox = contentEl.createDiv({ cls: 'rolodex-vector-output-box' });
+    outputBox.style.display = 'none';
+
+    // Action buttons container
+    const actions = contentEl.createDiv({ cls: 'rolodex-vector-actions' });
+
+    // Button 1: Copy CLI Command
+    const copyCmdBtn = actions.createEl('button', {
+      text: '📋 Copy CLI Command',
+      cls: 'rolodex-chip rolodex-vector-action-btn',
+    });
+    copyCmdBtn.addEventListener('click', () => {
+      void navigator.clipboard.writeText(cmdText);
+      new Notice('Copied Vector CLI command to clipboard!');
+    });
+
+    // Button 2: Copy AI Prompt
+    const copyAiPromptBtn = actions.createEl('button', {
+      text: '🤖 Copy AI Agent Prompt',
+      cls: 'rolodex-chip rolodex-vector-action-btn',
+    });
+    copyAiPromptBtn.addEventListener('click', () => {
+      const prompt = `/workload-advisor Fix Salesforce Vector workload for opportunity "${this.opp.name}" (ID: ${this.opp.id || ''}) for ${this.accountName}. Proposed fix: ${this.opp.suggestedFix || 'Create Workload'}. Execute via Chrome CDP.`;
+      void navigator.clipboard.writeText(prompt);
+      new Notice('Copied AI prompt to clipboard!');
+    });
+
+    // Button 3: Open in Vector
+    if (this.opp.url) {
+      const openVectorBtn = actions.createEl('button', {
+        text: '↗️ Open in Vector',
+        cls: 'rolodex-chip rolodex-vector-action-btn',
+      });
+      openVectorBtn.addEventListener('click', () => {
+        window.open(this.opp.url, '_blank');
+      });
+    }
+
+    // Button 4: Run Fix in Chrome (CDP) if Node child_process is available
+    let cp: any = null;
+    try {
+      cp = (window as any).require ? (window as any).require('child_process') : null;
+    } catch {}
+
+    if (cp && this.opp.fixCommand) {
+      const runBtn = actions.createEl('button', {
+        text: '⚡ Run Fix in Chrome (CDP)',
+        cls: 'rolodex-chip is-accent rolodex-vector-action-btn',
+      });
+      runBtn.addEventListener('click', () => {
+        outputBox.style.display = 'block';
+        outputBox.empty();
+        outputBox.createEl('div', {
+          text: '⏳ Executing workload_hygiene.py via Chrome CDP (port 9222)...',
+          cls: 'rolodex-vector-status-running',
+        });
+        runBtn.disabled = true;
+
+        const execCmd = `${cmdText} --execute`;
+        const envPath = (process.env.PATH || '') + ':/usr/local/bin:/opt/homebrew/bin';
+        cp.exec(execCmd, { env: { ...process.env, PATH: envPath } }, (err: any, stdout: string, stderr: string) => {
+          runBtn.disabled = false;
+          outputBox.empty();
+          if (err) {
+            outputBox.createEl('div', {
+              text: `⚠️ Execution failed or Chrome CDP not connected on port 9222:\n${stderr || err.message}\n\nPlease ensure Chrome is started with remote debugging, or copy the command above and run it in your terminal.`,
+              cls: 'rolodex-vector-status-error',
+            });
+          } else {
+            outputBox.createEl('div', {
+              text: `✅ Workload successfully updated in Vector!\n${stdout}`,
+              cls: 'rolodex-vector-status-success',
+            });
+            new Notice('Vector workload hygiene update succeeded!');
+          }
+        });
+      });
+    }
+
+    // Close button
+    const closeBtn = actions.createEl('button', {
+      text: 'Close',
+      cls: 'rolodex-chip rolodex-vector-action-btn',
+    });
+    closeBtn.addEventListener('click', () => {
+      this.close();
+    });
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
+
