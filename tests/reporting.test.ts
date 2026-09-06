@@ -235,4 +235,44 @@ describe('parseAccountWorkloads', () => {
     const nonExistent = await parseAccountWorkloads(mockApp, 'NonExistent');
     expect(nonExistent).toBeNull();
   });
+
+  it('prioritizes dedicated customer extract file over dashboard', async () => {
+    const custFile = Object.create(TFile.prototype);
+    custFile.path = 'Reporting/Workloads/customer/Amgen.md';
+    custFile.basename = 'Amgen';
+
+    const custContent = `---
+type: workload-extract
+customer: Amgen
+total_pipeline: 910000
+total_pipeline_formatted: "$910K"
+---
+# Workloads & Pipeline — Amgen
+
+## 💼 Active Opportunities
+
+| Opportunity | Amount | Stage | Close Date | Owner | Workload Status |
+|---|---|---|---|---|---|
+| [Amgen- Wiz (Cloud/Code)- $510k iACV](https://vector.lightning.force.com/opp1) | $510K | 02 - Tech Eval | 2026-07-31 | Security | 🔴 Missing Workload |
+| [Amgen - FoldRun- HPC/AI](https://vector.lightning.force.com/opp4) | $400K | 02 - Tech Eval | 2026-12-31 | davidpichardo | 🟢 Attached |
+`;
+
+    const mockApp: any = {
+      vault: {
+        getMarkdownFiles: () => [custFile],
+        getAbstractFileByPath: () => null,
+        cachedRead: async (f: any) => (f === custFile ? custContent : ''),
+      },
+    };
+
+    const pipeline = await parseAccountWorkloads(mockApp, 'Amgen');
+    expect(pipeline).not.toBeNull();
+    expect(pipeline?.totalPipeline).toBe(910000);
+    expect(pipeline?.totalPipelineFormatted).toBe('$910K');
+    expect(pipeline?.opps.length).toBe(2);
+    expect(pipeline?.missingWorkloadCount).toBe(1);
+    expect(pipeline?.filePath).toBe('Reporting/Workloads/customer/Amgen.md');
+    expect(pipeline?.opps[0].isMissingWorkload).toBe(true);
+    expect(pipeline?.opps[1].isMissingWorkload).toBe(false);
+  });
 });

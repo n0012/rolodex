@@ -45,6 +45,7 @@ export interface AccountPipeline {
   totalPipelineFormatted: string;
   opps: WorkloadOpportunity[];
   missingWorkloadCount: number;
+  filePath?: string;
 }
 
 /**
@@ -247,9 +248,89 @@ export async function parseAccountSupportCases(app: App, accountName: string): P
 }
 
 /**
- * Parses opportunity pipeline and missing workload alerts from Reporting/Dashboards/Workloads.md
+ * Parses opportunity pipeline and missing workload alerts from Reporting/Workloads/customer/<Account>.md
+ * with fallback to Reporting/Dashboards/Workloads.md
  */
 export async function parseAccountWorkloads(app: App, accountName: string): Promise<AccountPipeline | null> {
+  const normTarget = normalizeAccountName(accountName);
+
+  // 1. Try dedicated customer extract first: Reporting/Workloads/customer/<Account>.md
+  const allFiles = typeof app.vault.getMarkdownFiles === 'function' ? app.vault.getMarkdownFiles() : [];
+  const customerFile = allFiles.find(f => 
+    f.path.startsWith('Reporting/Workloads/customer/') &&
+    accountsMatch(f.basename, normTarget)
+  );
+
+  if (customerFile instanceof TFile) {
+    const content = await app.vault.cachedRead(customerFile);
+    const opps: WorkloadOpportunity[] = [];
+    const lines = content.split('\n');
+
+    let inActiveOpps = false;
+    for (const line of lines) {
+      if (line.startsWith('## 💼 Active Opportunities')) {
+        inActiveOpps = true;
+        continue;
+      } else if (line.startsWith('## ')) {
+        inActiveOpps = false;
+      }
+
+      if (!inActiveOpps || !line.startsWith('|')) continue;
+      const cols = line.split('|').map(c => c.trim()).slice(1, -1);
+      if (cols.length < 5 || cols[0].toLowerCase().includes('opportunity') || cols[0].startsWith('---') || cols[0].startsWith(':--')) continue;
+
+      const oppCol = cols[0];
+      const amountCol = cols[1];
+      const stageCol = cols[2];
+      const closeCol = cols[3];
+      const statusCol = cols[5] || '';
+
+      const linkMatch = oppCol.match(/\[([^\]]+)\]\(([^)]+)\)/);
+      const oppName = linkMatch ? linkMatch[1] : oppCol;
+      const oppUrl = linkMatch ? linkMatch[2] : '';
+
+      const isMissing = statusCol.includes('Missing Workload') || statusCol.includes('No WL');
+
+      let amount = 0;
+      const cleanNum = amountCol.replace(/[$,]/g, '').trim();
+      if (cleanNum.endsWith('M')) {
+        amount = parseFloat(cleanNum.slice(0, -1)) * 1_000_000;
+      } else if (cleanNum.endsWith('K')) {
+        amount = parseFloat(cleanNum.slice(0, -1)) * 1_000;
+      } else {
+        amount = parseFloat(cleanNum) || 0;
+      }
+
+      opps.push({
+        name: oppName,
+        url: oppUrl,
+        amount,
+        amountFormatted: amountCol,
+        closeDate: closeCol.replace(/\*\*/g, ''),
+        stage: stageCol,
+        type: '',
+        isMissingWorkload: isMissing,
+      });
+    }
+
+    if (opps.length > 0) {
+      const totalPipeline = opps.reduce((sum, o) => sum + o.amount, 0);
+      const totalPipelineFormatted = totalPipeline >= 1_000_000
+        ? `$${(totalPipeline / 1_000_000).toFixed(2)}M`
+        : `$${(totalPipeline / 1_000).toFixed(0)}K`;
+      const missingWorkloadCount = opps.filter(o => o.isMissingWorkload).length;
+
+      return {
+        totalPipeline,
+        totalPipelineFormatted,
+        opps,
+        missingWorkloadCount,
+        filePath: customerFile.path,
+      };
+    }
+  }
+
+  // 2. Fallback to master dashboard: Reporting/Dashboards/Workloads.md
   const workloadsFile = app.vault.getAbstractFileByPath('Reporting/Dashboards/Workloads.md');
   if (!(workloadsFile instanceof TFile)) return null;
 
@@ -338,5 +419,6 @@ export async function parseAccountWorkloads(app: App, accountName: string): Prom
     totalPipelineFormatted,
     opps,
     missingWorkloadCount,
+    filePath: workloadsFile.path,
   };
 }

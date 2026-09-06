@@ -818,13 +818,17 @@ export class RolodexView extends ItemView {
       }
 
       const foot = pipeBlock.createDiv({ cls: 'rolodex-intel-block-footer' });
+      const targetPath = pipeline.filePath || 'Reporting/Dashboards/Workloads.md';
+      const targetLabel = pipeline.filePath && !pipeline.filePath.endsWith('Workloads.md')
+        ? `${e.name} Workloads ↗`
+        : 'Workloads.md ↗';
       const dashLink = foot.createEl('a', {
-        text: 'Workloads.md ↗',
+        text: targetLabel,
         cls: 'rolodex-intel-dashboard-link',
       });
       dashLink.addEventListener('click', (ev) => {
         ev.preventDefault();
-        void this.app.workspace.openLinkText('Reporting/Dashboards/Workloads.md', '', false);
+        void this.app.workspace.openLinkText(targetPath, '', false);
       });
     }
   }
