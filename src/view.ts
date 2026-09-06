@@ -751,8 +751,9 @@ export class RolodexView extends ItemView {
       shelf.createSpan({ text: '📁 Existing 2x2 Reports:', cls: 'rolodex-reports-shelf-title' });
       const chipList = shelf.createDiv({ cls: 'rolodex-chips' });
       for (const rep of existingReports) {
+        const icon = rep.isRisk ? '⚠️' : '📄';
         const btn = chipList.createEl('button', {
-          text: `📄 ${rep.label}`,
+          text: `${icon} ${rep.label}`,
           cls: 'rolodex-chip is-report',
           attr: { title: `Open report: ${rep.dateRange}` },
         });

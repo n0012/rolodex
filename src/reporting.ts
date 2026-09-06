@@ -16,6 +16,7 @@ export interface ExistingReport {
   dateRange: string;
   fromDate: string;
   toDate: string;
+  isRisk?: boolean;
 }
 
 export interface SupportCaseItem {
@@ -97,49 +98,86 @@ export function formatFriendlyDateRange(from: string, to: string): string {
 
 /**
  * Finds all pre-existing 2x2 markdown reports for the entity.
+ * Only returns dedicated customer or project reports; strictly ignores weekly or monthly portfolio summaries.
  */
 export function findExistingReports(app: App, entity: EntityRecord): ExistingReport[] {
   const reports: ExistingReport[] = [];
   const typeLower = entity.type.toLowerCase();
+
+  // Only Customer and Project entities have dedicated 2x2 report archives
+  if (typeLower !== 'customer' && typeLower !== 'project') {
+    return reports;
+  }
+
   const nameNorm = normalizeAccountName(entity.name);
+  const expectedPrefix = `Reporting/2x2/${typeLower}/`;
 
   const files = app.vault.getMarkdownFiles();
   for (const file of files) {
     const p = file.path;
-    // Check if path is under Reporting/2x2/(customer|project)/...
-    if (!p.startsWith('Reporting/2x2/')) continue;
+
+    // Reject weekly and monthly reports outright
+    if (p.includes('/weekly/') || p.includes('/monthly/')) continue;
+    const baseLower = file.basename.toLowerCase();
+    if (baseLower.startsWith('weekly') || baseLower.startsWith('monthly')) continue;
+
+    // Must strictly be under Reporting/2x2/<customer|project>/
+    if (!p.startsWith(expectedPrefix)) continue;
 
     const pathParts = p.split('/');
     if (pathParts.length < 4) continue;
 
     const folderType = pathParts[2].toLowerCase(); // e.g. "customer" or "project"
-    const folderAccount = normalizeAccountName(pathParts[3]); // e.g. "amgen"
+    if (folderType !== typeLower) continue;
 
-    if (folderType === typeLower && (folderAccount === nameNorm || folderAccount.includes(nameNorm))) {
-      // Parse dates from filename
-      // e.g. 2x2 - Customer_Amgen - 2026-08-29_to_2026-09-05.md
-      const m = file.basename.match(/(\d{4}-\d{2}-\d{2})_to_(\d{4}-\d{2}-\d{2})/);
-      if (m) {
-        const fromDate = m[1];
-        const toDate = m[2];
-        const dateRange = `${fromDate} to ${toDate}`;
-        const label = formatFriendlyDateRange(fromDate, toDate);
-        reports.push({
-          path: file.path,
-          label,
-          dateRange,
-          fromDate,
-          toDate,
-        });
-      } else {
-        reports.push({
-          path: file.path,
-          label: file.basename.replace(/^2x2\s*-\s*/i, ''),
-          dateRange: file.basename,
-          fromDate: '',
-          toDate: '',
-        });
+    const folderAccount = normalizeAccountName(pathParts[3]); // e.g. "amgen"
+    if (!accountsMatch(folderAccount, nameNorm)) continue;
+
+    // Check frontmatter scope if metadataCache is available
+    if (app.metadataCache) {
+      const cache = app.metadataCache.getFileCache(file);
+      const scope = cache?.frontmatter?.scope;
+      if (scope && typeof scope === 'string' && scope.toLowerCase() !== typeLower) {
+        continue;
       }
+    }
+
+    // Must be a dedicated 2x2 report file
+    const isDedicated = baseLower.startsWith(`2x2 - ${typeLower}_`) || baseLower.startsWith('2x2');
+    if (!isDedicated) continue;
+
+    const isRisk = file.basename.includes('_Risk');
+
+    // Parse dates from filename
+    // e.g. 2x2 - Customer_Amgen - 2026-08-29_to_2026-09-05.md
+    const m = file.basename.match(/(\d{4}-\d{2}-\d{2})_to_(\d{4}-\d{2}-\d{2})/);
+    if (m) {
+      const fromDate = m[1];
+      const toDate = m[2];
+      const dateRange = `${fromDate} to ${toDate}`;
+      const label = formatFriendlyDateRange(fromDate, toDate);
+      reports.push({
+        path: file.path,
+        label,
+        dateRange,
+        fromDate,
+        toDate,
+        isRisk,
+      });
+    } else {
+      const singleDateMatch = file.basename.match(/(\d{4}-\d{2}-\d{2})/);
+      const fromDate = singleDateMatch ? singleDateMatch[1] : '';
+      const cleanBase = file.basename
+        .replace(/^2x2\s*-\s*(Customer|Project)_[^\s-]+\s*-\s*/i, '')
+        .replace(/^2x2\s*-\s*/i, '');
+      reports.push({
+        path: file.path,
+        label: cleanBase || file.basename,
+        dateRange: file.basename,
+        fromDate,
+        toDate: fromDate,
+        isRisk,
+      });
     }
   }
 

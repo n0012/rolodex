@@ -78,6 +78,69 @@ describe('findExistingReports', () => {
     expect(reports[0].path).toContain('2026-08-29_to_2026-09-05');
     expect(reports[1].label).toBe('Aug 2026');
   });
+
+  it('strictly excludes weekly and monthly portfolio 2x2 reports', () => {
+    const mockFiles: any[] = [
+      {
+        path: 'Reporting/2x2/weekly/2026/2026-09/weekly_2x2_2026-08-29_to_2026-09-05.md',
+        basename: 'weekly_2x2_2026-08-29_to_2026-09-05',
+      },
+      {
+        path: 'Reporting/2x2/monthly/2026/monthly_2x2_2026-08.md',
+        basename: 'monthly_2x2_2026-08',
+      },
+      {
+        path: 'Reporting/2x2/customer/Amgen/2x2 - Customer_Amgen - 2026-08-29_to_2026-09-05.md',
+        basename: '2x2 - Customer_Amgen - 2026-08-29_to_2026-09-05',
+      },
+      {
+        path: 'Reporting/2x2/customer/Amgen/2x2 - Customer_Amgen_Risk - 2026-09-01.md',
+        basename: '2x2 - Customer_Amgen_Risk - 2026-09-01',
+      },
+    ];
+
+    const mockApp: any = {
+      vault: {
+        getMarkdownFiles: () => mockFiles,
+      },
+    };
+
+    const reports = findExistingReports(mockApp, dummyEntity);
+    // Should ONLY return the 2 Amgen reports, completely ignoring weekly and monthly
+    expect(reports.length).toBe(2);
+    expect(reports[0].path).toContain('2026-08-29_to_2026-09-05');
+    expect(reports[0].isRisk).toBe(false);
+    expect(reports[1].path).toContain('Customer_Amgen_Risk');
+    expect(reports[1].isRisk).toBe(true);
+  });
+
+  it('returns empty list for non-customer and non-project entities', () => {
+    const personEntity: EntityRecord = {
+      key: 'person/harry',
+      type: 'Person',
+      name: 'Harry',
+      subs: new Set(),
+      tasks: [],
+      activities: [],
+      related: new Map(),
+      noteCount: 1,
+    };
+
+    const mockFiles: any[] = [
+      {
+        path: 'Reporting/2x2/customer/Amgen/2x2 - Customer_Amgen - 2026-08-29_to_2026-09-05.md',
+        basename: '2x2 - Customer_Amgen - 2026-08-29_to_2026-09-05',
+      },
+    ];
+
+    const mockApp: any = {
+      vault: {
+        getMarkdownFiles: () => mockFiles,
+      },
+    };
+
+    expect(findExistingReports(mockApp, personEntity)).toEqual([]);
+  });
 });
 
 describe('parseAccountSupportCases', () => {
