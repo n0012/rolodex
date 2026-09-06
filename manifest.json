@@ -1,7 +1,7 @@
 {
   "id": "rolodex",
   "name": "Rolodex",
-  "version": "1.4.11",
+  "version": "1.4.12",
   "minAppVersion": "1.4.0",
   "description": "An executive dashboard and AI cockpit for the accounts, people, and projects in your vault: who is going quiet, what you still owe them, and one-click actions.",
   "author": "n0012",

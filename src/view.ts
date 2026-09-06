@@ -22,6 +22,11 @@ import {
   createOrOpenContactNote,
 } from './actions';
 import type { TaskUpdateProposal } from './actions';
+import {
+  findExistingReports,
+  parseAccountSupportCases,
+  parseAccountWorkloads,
+} from './reporting';
 import { daysAgoIso, todayIso } from './parse';
 import { buildRows, heat, inWindow, isOverdue, openTasks, sortRows, sortTasks } from './select';
 import type { SortKey, Window } from './select';
@@ -640,6 +645,10 @@ export class RolodexView extends ItemView {
     stats.createSpan({ text: `in ${e.noteCount} notes` });
     stats.createSpan({ text: `${e.firstSeen || '?'} → ${e.lastSeen || '?'}` });
 
+    // Commercial & Support Intelligence Pulse (from Support Cases.md & Workloads.md)
+    const intelContainer = root.createDiv({ cls: 'rolodex-intel-container' });
+    void this.loadCommercialAndSupportPulse(intelContainer, e);
+
     // Ecosystem Network Graph & Connected Entities
     renderEcosystemNetwork(root, e, this.plugin.index, {
       onSelectEntity: (k) => {
@@ -674,7 +683,85 @@ export class RolodexView extends ItemView {
     this.renderActivity(root, e);
   }
 
+  private async loadCommercialAndSupportPulse(container: HTMLElement, e: EntityRecord) {
+    if (e.type.toLowerCase() !== 'customer') return;
+
+    const [cases, pipeline] = await Promise.all([
+      parseAccountSupportCases(this.app, e.name),
+      parseAccountWorkloads(this.app, e.name),
+    ]);
+
+    if (cases.length === 0 && !pipeline) return;
+
+    container.empty();
+    const banner = container.createDiv({ cls: 'rolodex-intel-banner' });
+
+    if (cases.length > 0) {
+      const caseBadge = banner.createDiv({ cls: 'rolodex-intel-badge is-warning' });
+      caseBadge.createSpan({
+        text: `🚨 ${cases.length} Open Support ${cases.length === 1 ? 'Case' : 'Cases'}:`,
+        cls: 'rolodex-intel-badge-title',
+      });
+      for (const c of cases) {
+        const link = caseBadge.createEl('a', {
+          text: `#${c.caseNumber} (${c.priority} · ${c.product} · ${c.age})`,
+          cls: 'rolodex-intel-link',
+          attr: { title: `${c.status} (Owner: ${c.owner})` },
+        });
+        link.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          if (c.url) window.open(c.url, '_blank');
+          else void this.app.workspace.openLinkText('Reporting/Dashboards/Support Cases.md', '', false);
+        });
+      }
+    }
+
+    if (pipeline) {
+      const pipeBadge = banner.createDiv({ cls: 'rolodex-intel-badge is-pipeline' });
+      pipeBadge.createSpan({
+        text: `💼 Pipeline: ${pipeline.totalPipelineFormatted} (${pipeline.opps.length} ${pipeline.opps.length === 1 ? 'opp' : 'opps'})`,
+        cls: 'rolodex-intel-pipeline-total',
+      });
+
+      if (pipeline.missingWorkloadCount > 0) {
+        const warn = pipeBadge.createSpan({
+          text: `🔴 ${pipeline.missingWorkloadCount} missing ${pipeline.missingWorkloadCount === 1 ? 'workload' : 'workloads'}`,
+          cls: 'rolodex-intel-missing-workload',
+        });
+        warn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          void this.app.workspace.openLinkText('Reporting/Dashboards/Workloads.md', '', false);
+        });
+      }
+
+      const oppSummary = pipeline.opps
+        .map((o) => `• ${o.name}: ${o.amountFormatted} (${o.stage})`)
+        .join('\n');
+      pipeBadge.setAttribute('title', `Open Opportunities:\n${oppSummary}\n\nClick to open Workloads.md`);
+      pipeBadge.addEventListener('click', () => {
+        void this.app.workspace.openLinkText('Reporting/Dashboards/Workloads.md', '', false);
+      });
+    }
+  }
+
   private renderAiControls(root: HTMLElement, e: EntityRecord) {
+    const existingReports = findExistingReports(this.app, e);
+    if (existingReports.length > 0) {
+      const shelf = root.createDiv({ cls: 'rolodex-reports-shelf' });
+      shelf.createSpan({ text: '📁 Existing 2x2 Reports:', cls: 'rolodex-reports-shelf-title' });
+      const chipList = shelf.createDiv({ cls: 'rolodex-chips' });
+      for (const rep of existingReports) {
+        const btn = chipList.createEl('button', {
+          text: `📄 ${rep.label}`,
+          cls: 'rolodex-chip is-report',
+          attr: { title: `Open report: ${rep.dateRange}` },
+        });
+        btn.addEventListener('click', () => {
+          void this.app.workspace.openLinkText(rep.path, '', false);
+        });
+      }
+    }
+
     const row = root.createDiv({ cls: 'rolodex-row' });
     new ButtonComponent(row)
       .setButtonText('🧠 Executive Brief')
