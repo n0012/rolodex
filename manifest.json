@@ -1,7 +1,7 @@
 {
   "id": "cockpit",
   "name": "Cockpit",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "minAppVersion": "1.4.0",
   "description": "Executive Cockpit & Chief of Staff for Google Cloud Customer Engineers: Ecosystem graph, support health, Vector CRM telemetry, and proactive AI interventions.",
   "author": "n0012",

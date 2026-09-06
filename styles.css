@@ -1590,3 +1590,95 @@
   border-top: 1px solid var(--background-modifier-border);
 }
 
+/* Executive Shelves in Cockpit */
+.cockpit-shelf-wrap {
+  margin: 10px 0 14px 0;
+}
+
+.cockpit-shelf-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 650px) {
+  .cockpit-shelf-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+.cockpit-shelf-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.cockpit-shelf-card.is-next-step {
+  border-left: 3px solid var(--interactive-accent);
+}
+
+.cockpit-shelf-card.is-docs {
+  border-left: 3px solid var(--text-accent);
+}
+
+.cockpit-shelf-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.cockpit-shelf-title {
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-normal);
+}
+
+.cockpit-shelf-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-normal);
+  white-space: pre-wrap;
+}
+
+.cockpit-shelf-docs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.cockpit-shelf-doc-item {
+  line-height: 1.35;
+}
+
+.cockpit-doc-link {
+  color: var(--link-color);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cockpit-doc-link:hover {
+  text-decoration: underline;
+}
+
+.cockpit-recipient-input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.cockpit-recipient-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+

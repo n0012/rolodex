@@ -4,7 +4,14 @@ import {
 import { buildIndex } from './scanner';
 import { todayIso } from './parse';
 import { ensurePromptFiles } from './ai';
-import { RolodexView, VIEW_TYPE_COCKPIT, VIEW_TYPE_ROLODEX } from './view';
+import {
+  EntitySuggestModal,
+  QuickCaptureModal,
+  RolodexView,
+  VIEW_TYPE_COCKPIT,
+  VIEW_TYPE_ROLODEX,
+} from './view';
+import { appendTaskToDailyInbox } from './actions';
 import { DEFAULT_PROMPT, DEFAULT_SETTINGS } from './types';
 import type { EntityTask, RolodexIndex, RolodexSettings } from './types';
 
@@ -39,6 +46,54 @@ export default class RolodexPlugin extends Plugin {
         new Notice(`Cockpit: ${this.index?.entities.size ?? 0} entities`);
       },
     });
+    this.addCommand({
+      id: 'jump-to-entity',
+      name: 'Cockpit: Jump to Entity',
+      callback: async () => {
+        const idx = await this.ensureIndex();
+        new EntitySuggestModal(this.app, Array.from(idx.entities.values()), async ent => {
+          const v = await this.openView();
+          v?.selectEntityByName(ent.name);
+        }).open();
+      },
+    });
+    this.addCommand({
+      id: 'quick-capture',
+      name: 'Cockpit: Quick Capture Task to Inbox',
+      callback: () => {
+        const activeFile = this.app.workspace.getActiveFile();
+        let defaultTag = '';
+        if (activeFile) {
+          if (this.index?.entities.has(activeFile.basename.toLowerCase())) {
+            defaultTag = activeFile.basename;
+          } else {
+            const inEntityFolder = (this.settings.entityNoteFolders || []).some(f => {
+              const prefix = f.endsWith('/') ? f : `${f}/`;
+              return activeFile.path.startsWith(prefix);
+            });
+            if (inEntityFolder) defaultTag = activeFile.basename;
+          }
+        }
+        new QuickCaptureModal(this.app, defaultTag, async (text, pri) => {
+          await appendTaskToDailyInbox(this.app, text, pri);
+          new Notice("Task captured to today's Inbox!");
+          await this.rescan();
+          this.view()?.refresh();
+        }).open();
+      },
+    });
+    this.addCommand({
+      id: 'chief-of-staff-brief',
+      name: 'Cockpit: Ask Chief of Staff for Active Note',
+      callback: async () => {
+        const activeFile = this.app.workspace.getActiveFile();
+        const v = await this.openView();
+        if (activeFile && v) {
+          v.selectEntityByName(activeFile.basename);
+          v.askChiefOfStaffPrompt();
+        }
+      },
+    });
 
     // The first scan reads every note, so it waits for layout rather than
     // competing with startup.
@@ -47,6 +102,24 @@ export default class RolodexPlugin extends Plugin {
       this.registerEvent(this.app.vault.on('create', f => this.markDirty(f)));
       this.registerEvent(this.app.vault.on('delete', f => this.markDirty(f)));
       this.registerEvent(this.app.vault.on('rename', f => this.markDirty(f)));
+
+      this.registerEvent(
+        this.app.workspace.on('active-leaf-change', () => {
+          const file = this.app.workspace.getActiveFile();
+          if (!file || !file.path.endsWith('.md')) return;
+          const v = this.view();
+          if (!v || v.isPinned) return;
+
+          const inEntityFolder = (this.settings.entityNoteFolders || []).some(f => {
+            const prefix = f.endsWith('/') ? f : `${f}/`;
+            return file.path.startsWith(prefix);
+          });
+
+          if (inEntityFolder || (this.index && this.index.entities.has(file.basename.toLowerCase()))) {
+            v.selectEntityByName(file.basename);
+          }
+        })
+      );
     });
   }
 
@@ -94,22 +167,26 @@ export default class RolodexPlugin extends Plugin {
 
   // ── View ─────────────────────────────────────────────────────
 
-  private view(): RolodexView | null {
+  view(): RolodexView | null {
     const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_COCKPIT)[0]
       || this.app.workspace.getLeavesOfType(VIEW_TYPE_ROLODEX)[0];
     return leaf?.view instanceof RolodexView ? leaf.view : null;
   }
 
-  async openView() {
+  async openView(): Promise<RolodexView | null> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_COCKPIT)[0]
       || this.app.workspace.getLeavesOfType(VIEW_TYPE_ROLODEX)[0];
-    if (existing) { await this.app.workspace.revealLeaf(existing); return; }
+    if (existing) {
+      await this.app.workspace.revealLeaf(existing);
+      return existing.view instanceof RolodexView ? existing.view : null;
+    }
     // Right sidebar on desktop; on phones getRightLeaf returns the single
     // mobile drawer, which is the correct home there too.
     const leaf: WorkspaceLeaf | null = this.app.workspace.getRightLeaf(false);
-    if (!leaf) return;
+    if (!leaf) return null;
     await leaf.setViewState({ type: VIEW_TYPE_COCKPIT, active: true });
     await this.app.workspace.revealLeaf(leaf);
+    return leaf.view instanceof RolodexView ? leaf.view : null;
   }
 
   // ── Writing back ─────────────────────────────────────────────

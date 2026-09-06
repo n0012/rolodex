@@ -96,8 +96,18 @@ export async function applyTaskUpdates(
       await app.vault.process(file, (data) => {
         const lines = data.split('\n');
         for (const u of fileUpdates) {
-          if (u.line >= 0 && u.line < lines.length) {
-            const line = lines[u.line];
+          let lineIdx = u.line;
+          // Verify line contains expected text or search for it if line numbers shifted
+          if (u.currentText) {
+            const currentAtOffset = (lineIdx >= 0 && lineIdx < lines.length) ? lines[lineIdx] : '';
+            if (!currentAtOffset.includes(u.currentText)) {
+              const found = lines.findIndex(l => l.includes(u.currentText));
+              if (found >= 0) lineIdx = found;
+            }
+          }
+
+          if (lineIdx >= 0 && lineIdx < lines.length) {
+            const line = lines[lineIdx];
             const taskMatch = /^(\s*[-*+]\s+\[)(.)(\]\s+)(.*)$/.exec(line);
             if (taskMatch) {
               const indent = taskMatch[1];
@@ -113,7 +123,7 @@ export async function applyTaskUpdates(
                 if (!body.includes('❌')) body += ` ❌ ${today}`;
               }
 
-              lines[u.line] = `${indent}${marker}${rest}${body}`;
+              lines[lineIdx] = `${indent}${marker}${rest}${body}`;
               totalUpdated++;
             }
           }
@@ -121,7 +131,7 @@ export async function applyTaskUpdates(
         return lines.join('\n');
       });
     } catch (err) {
-      console.error(`Rolodex: Error updating tasks in ${path}:`, err);
+      console.error(`Cockpit: Error updating tasks in ${path}:`, err);
     }
   }
 
@@ -430,6 +440,7 @@ export async function appendTaskToDailyInbox(
   const taskLine = `- [ ] ${cleanText} ➕ ${today}${duePart}${priPart}`;
 
   await appendTaskToNote(app, todayPath, taskLine, '📥 Inbox');
+  void logCockpitAction(app, cleanText.split('#')[0].trim(), 'Task Inbox', cleanText, todayPath);
   return todayPath;
 }
 
@@ -455,7 +466,7 @@ export async function updateEntityNextStep(
         if (/^##\s+Next Step\b/i.test(lines[i])) {
           start = i;
           for (let j = i + 1; j < lines.length; j++) {
-            if (/^#{1,2}\s+/.test(lines[j])) {
+            if (/^#{1,6}\s+/.test(lines[j])) {
               end = j;
               break;
             }
@@ -464,14 +475,15 @@ export async function updateEntityNextStep(
         }
       }
 
-      const formatted = `## Next Step\n${trimmed}\n`;
+      const replacementLines = ['## Next Step', trimmed, ''];
       if (start >= 0) {
-        lines.splice(start, end - start, formatted);
+        lines.splice(start, end - start, ...replacementLines);
         return lines.join('\n');
       } else {
-        return `${data.trimEnd()}\n\n${formatted}`;
+        return `${data.trimEnd()}\n\n## Next Step\n${trimmed}\n`;
       }
     });
+    void logCockpitAction(app, entityPath.split('/').pop()?.replace(/\.md$/, '') || '', 'Next Step', nextStepText, entityPath);
     return true;
   } catch (err) {
     console.error(`Error updating next step in ${entityPath}:`, err);
@@ -518,6 +530,42 @@ created: ${today}
 
 `;
   await adapter.write(path, frontmatter + content.trim() + '\n');
+  void logCockpitAction(app, entityName, 'Saved Briefing', query, path);
   return path;
+}
+
+/**
+ * Records an executed Cockpit action to the append-only audit trail: ~Review/Cockpit Log.md
+ */
+export async function logCockpitAction(
+  app: App,
+  entityName: string,
+  actionType: string,
+  summary: string,
+  targetPath?: string,
+): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const nowTime = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const logDir = '~Review';
+    const logPath = `${logDir}/Cockpit Log.md`;
+    const adapter = app.vault.adapter;
+
+    if (!(await adapter.exists(logDir))) {
+      await adapter.mkdir(logDir);
+    }
+
+    const logLine = `- **${today} ${nowTime}** [${actionType}] \`[[${entityName || 'General'}]]\`: ${summary}${targetPath ? ` ➔ \`${targetPath}\`` : ''}\n`;
+
+    let file = app.vault.getAbstractFileByPath(logPath);
+    if (file instanceof TFile) {
+      await app.vault.process(file, data => data + logLine);
+    } else {
+      const initialContent = `# 🎛️ Cockpit Action Audit Log\n\nAppend-only record of proactive actions, email drafts, task creations, and Next Step updates dispatched from Cockpit.\n\n## Actions\n\n${logLine}`;
+      await adapter.write(logPath, initialContent);
+    }
+  } catch (err) {
+    console.error('Cockpit: Error writing to Cockpit Log:', err);
+  }
 }
 

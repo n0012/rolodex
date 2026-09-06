@@ -591,3 +591,54 @@ export async function parseAccountWorkloads(app: App, accountName: string): Prom
     filePath: workloadsFile.path,
   };
 }
+
+export interface EntityShelves {
+  nextStep: string | null;
+  docs: Array<{ title: string; url: string; tldr?: string }>;
+}
+
+/**
+ * Extracts authoritative ## Next Step and canonical ## Docs from an entity note.
+ */
+export async function extractEntityNoteShelves(
+  app: App,
+  notePath: string,
+): Promise<EntityShelves> {
+  const result: EntityShelves = { nextStep: null, docs: [] };
+  const adapter = app.vault.adapter;
+  if (!(await adapter.exists(notePath))) return result;
+
+  try {
+    const content = await adapter.read(notePath);
+
+    // Extract Next Step
+    const nextStepMatch = content.match(/##\s+Next Step[\r\n]+([\s\S]*?)(?=\n#{1,6}\s+|\Z)/i);
+    if (nextStepMatch && nextStepMatch[1].trim()) {
+      result.nextStep = nextStepMatch[1].trim();
+    }
+
+    // Extract Docs
+    const docsMatch = content.match(/##\s+Docs[\r\n]+([\s\S]*?)(?=\n#{1,6}\s+|\Z)/i);
+    if (docsMatch && docsMatch[1].trim()) {
+      const lines = docsMatch[1].trim().split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('-')) continue;
+        const linkMatch = /\[([^\]]+)\]\(([^)]+)\)/.exec(trimmed);
+        const wikiMatch = /\[\[([^\]]+)\]\]/.exec(trimmed);
+        const parts = trimmed.split(/—| - /);
+        const tldr = parts.length > 1 ? parts.slice(1).join('—').trim() : undefined;
+
+        if (linkMatch) {
+          result.docs.push({ title: linkMatch[1], url: linkMatch[2], tldr });
+        } else if (wikiMatch) {
+          result.docs.push({ title: wikiMatch[1], url: wikiMatch[1], tldr });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`Cockpit: Error extracting shelves from ${notePath}:`, err);
+  }
+
+  return result;
+}

@@ -1,6 +1,7 @@
 import {
   App,
   ButtonComponent,
+  FuzzySuggestModal,
   ItemView,
   MarkdownRenderer,
   Modal,
@@ -28,9 +29,11 @@ import {
   reclassifyTagInVault,
   saveTwoByTwoReport,
   createOrOpenContactNote,
+  logCockpitAction,
 } from './actions';
 import type { TaskUpdateProposal } from './actions';
 import {
+  extractEntityNoteShelves,
   findExistingReports,
   parseAccountSupportCases,
   parseAccountWorkloads,
@@ -79,6 +82,8 @@ export class RolodexView extends ItemView {
   } | null = null;
   private actionLoading = false;
   private ecosystemMode: 'graph' | 'chips' = 'graph';
+  public isPinned = false;
+  private renderGen = 0;
 
   constructor(leaf: WorkspaceLeaf, plugin: RolodexPlugin) {
     super(leaf);
@@ -96,6 +101,25 @@ export class RolodexView extends ItemView {
     return 'layout-dashboard';
   }
 
+  public selectEntityByName(name: string): boolean {
+    if (this.isPinned) return false;
+    const idx = this.plugin.index;
+    if (!idx) return false;
+
+    const targetNameLower = name.trim().toLowerCase();
+    for (const [key, ent] of idx.entities.entries()) {
+      if (ent.name.toLowerCase() === targetNameLower) {
+        if (this.selected !== key) {
+          this.selected = key;
+          this.summary = null;
+          this.render();
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
   async onOpen() {
     await this.plugin.ensureIndex();
     this.render();
@@ -105,17 +129,33 @@ export class RolodexView extends ItemView {
     if (this.containerEl.isShown()) this.render();
   }
 
+  public askChiefOfStaffPrompt(query?: string) {
+    const input = this.containerEl.querySelector('.rolodex-action-input') as HTMLInputElement | null;
+    const btn = this.containerEl.querySelector('.rolodex-action-btn') as HTMLButtonElement | null;
+    if (input) {
+      if (query) {
+        input.value = query;
+      }
+      input.focus();
+      if (query && btn) {
+        btn.click();
+      }
+    }
+  }
+
   private body(): HTMLElement {
     return this.containerEl.children[1] as HTMLElement;
   }
 
   render() {
+    this.renderGen++;
+    const currentGen = this.renderGen;
     const root = this.body();
     root.empty();
     root.addClass('rolodex');
 
     this.renderControls(root);
-    if (this.selected) this.renderEntity(root, this.selected);
+    if (this.selected) this.renderEntity(root, this.selected, currentGen);
     else this.renderPortfolio(root);
   }
 
@@ -135,6 +175,29 @@ export class RolodexView extends ItemView {
     }
 
     const actions = bar.createDiv({ cls: 'rolodex-bar-actions' });
+    new ButtonComponent(actions)
+      .setIcon('search')
+      .setTooltip('Jump to Entity (Ctrl/Cmd+Shift+J)')
+      .onClick(() => {
+        if (!idx) return;
+        new EntitySuggestModal(this.app, Array.from(idx.entities.values()), ent => {
+          this.selectEntityByName(ent.name);
+        }).open();
+      });
+
+    new ButtonComponent(actions)
+      .setIcon('plus-circle')
+      .setTooltip("Quick Capture Task to Today's Inbox")
+      .onClick(() => {
+        const defaultTag = this.selected ? (idx?.entities.get(this.selected)?.name ?? '') : '';
+        new QuickCaptureModal(this.app, defaultTag, async (text, pri) => {
+          await appendTaskToDailyInbox(this.app, text, pri);
+          new Notice("Task captured to today's Inbox!");
+          await this.plugin.rescan();
+          this.render();
+        }).open();
+      });
+
     new ButtonComponent(actions)
       .setIcon('refresh-cw')
       .setTooltip('Rescan the vault')
@@ -218,6 +281,10 @@ export class RolodexView extends ItemView {
     actionBtn.addEventListener('click', runAction);
     actionInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') void runAction();
+      if (e.key === 'Escape') {
+        actionInput.value = '';
+        proposalHost.empty();
+      }
     });
 
     // Time window preset dropdown
@@ -490,7 +557,15 @@ export class RolodexView extends ItemView {
         if (p.type === 'email_draft' && p.email) {
           const em = p.email;
           const preview = pBody.createDiv({ cls: 'cockpit-preview-box' });
-          preview.createDiv({ text: `To: ${em.to}`, cls: 'cockpit-preview-meta' });
+          const toRow = preview.createDiv({ cls: 'cockpit-preview-meta' });
+          toRow.createSpan({ text: 'To: ' });
+          const toInput = toRow.createEl('input', {
+            type: 'text',
+            cls: 'cockpit-recipient-input',
+            value: em.to,
+            placeholder: 'recipient@google.com or client email…',
+          });
+
           preview.createDiv({ text: `Subject: ${em.subject}`, cls: 'cockpit-preview-meta' });
           preview.createEl('pre', { text: em.body, cls: 'cockpit-preview-text' });
 
@@ -500,15 +575,24 @@ export class RolodexView extends ItemView {
             cls: 'rolodex-chip is-cta',
           });
           openGmailBtn.addEventListener('click', () => {
-            const url = buildGmailDraftUrl(em.to, em.subject, em.body);
+            const finalTo = toInput.value.trim() || em.to;
+            if (!finalTo.includes('@')) {
+              new Notice(`Please enter a valid email address for "${finalTo}" first.`);
+              toInput.focus();
+              return;
+            }
+            const url = buildGmailDraftUrl(finalTo, em.subject, em.body);
             window.open(url, '_blank');
             new Notice('Opening Gmail draft in browser…');
+            void logCockpitAction(this.app, this.selected ? (this.plugin.index?.entities.get(this.selected)?.name || '') : '', 'Email Draft', `Draft to ${finalTo}: ${em.subject}`);
           });
 
           const copyBtn = bRow.createEl('button', { text: '📋 Copy Draft', cls: 'rolodex-chip' });
           copyBtn.addEventListener('click', async () => {
-            await navigator.clipboard.writeText(`To: ${em.to}\nSubject: ${em.subject}\n\n${em.body}`);
+            const finalTo = toInput.value.trim() || em.to;
+            await navigator.clipboard.writeText(`To: ${finalTo}\nSubject: ${em.subject}\n\n${em.body}`);
             new Notice('Email draft copied to clipboard!');
+            void logCockpitAction(this.app, this.selected ? (this.plugin.index?.entities.get(this.selected)?.name || '') : '', 'Copy Draft', `Draft to ${finalTo}: ${em.subject}`);
           });
         }
 
@@ -856,7 +940,7 @@ export class RolodexView extends ItemView {
 
   // ── Entity Detail View ───────────────────────────────────────
 
-  private renderEntity(root: HTMLElement, key: string) {
+  private renderEntity(root: HTMLElement, key: string, gen: number) {
     const e = this.plugin.index?.entities.get(key);
     if (!e) {
       root.createDiv({ text: `${key} is no longer in the index.`, cls: 'rolodex-muted' });
@@ -913,6 +997,19 @@ export class RolodexView extends ItemView {
       open.addEventListener('click', () => void this.app.workspace.openLinkText(e.notePath!, '', false));
     }
 
+    // Pin toggle (auto-follow active note)
+    const pinBtn = head.createEl('button', {
+      text: this.isPinned ? '📌 Pinned' : '📍 Auto-follow',
+      cls: this.isPinned ? 'rolodex-chip is-on' : 'rolodex-chip',
+      attr: { title: this.isPinned ? 'Pinned to this entity' : 'Auto-follow currently open note' },
+    });
+    pinBtn.addEventListener('click', () => {
+      this.isPinned = !this.isPinned;
+      pinBtn.setText(this.isPinned ? '📌 Pinned' : '📍 Auto-follow');
+      if (this.isPinned) pinBtn.addClass('is-on'); else pinBtn.removeClass('is-on');
+      new Notice(this.isPinned ? `Pinned Cockpit to ${e.name}` : 'Cockpit auto-following active notes');
+    });
+
     const stats = root.createDiv({ cls: 'rolodex-totals' });
     const open = openTasks(e);
     const late = open.filter((t) => isOverdue(t)).length;
@@ -920,6 +1017,10 @@ export class RolodexView extends ItemView {
     if (late) stats.createSpan({ text: `${late} overdue`, cls: 'rolodex-overdue' });
     stats.createSpan({ text: `in ${e.noteCount} notes` });
     stats.createSpan({ text: `${e.firstSeen || '?'} → ${e.lastSeen || '?'}` });
+
+    // Executive Shelves: Authoritative Next Step & Canonical Docs
+    const shelfWrap = root.createDiv({ cls: 'cockpit-shelf-wrap' });
+    void this.loadEntityShelves(shelfWrap, e, gen);
 
     // Cockpit Grid: Ecosystem Network Graph (left) & Commercial/Support Intelligence (right)
     const cockpitGrid = root.createDiv({ cls: 'rolodex-cockpit-grid' });
@@ -955,17 +1056,78 @@ export class RolodexView extends ItemView {
       },
     });
 
-    void this.loadCommercialAndSupportPulse(cockpitGrid, intelCol, e);
+    void this.loadCommercialAndSupportPulse(cockpitGrid, intelCol, e, gen);
 
     this.renderAiControls(root, e);
     this.renderTasks(root, e);
     this.renderActivity(root, e);
   }
 
+  private async loadEntityShelves(shelfWrap: HTMLElement, e: EntityRecord, gen: number) {
+    if (!e.notePath) return;
+    const shelves = await extractEntityNoteShelves(this.app, e.notePath);
+    if (this.renderGen !== gen) return;
+
+    shelfWrap.empty();
+    const shelfGrid = shelfWrap.createDiv({ cls: 'cockpit-shelf-grid' });
+
+    // 1. Authoritative Next Step Card
+    const nextStepCard = shelfGrid.createDiv({ cls: 'cockpit-shelf-card is-next-step' });
+    const nsHead = nextStepCard.createDiv({ cls: 'cockpit-shelf-head' });
+    nsHead.createSpan({ text: '📌 Authoritative Next Step', cls: 'cockpit-shelf-title' });
+
+    const editBtn = nsHead.createEl('button', { text: '✏️ Edit', cls: 'rolodex-chip is-mini' });
+    editBtn.addEventListener('click', () => {
+      new EditNextStepModal(this.app, e.name, shelves.nextStep || '', async (newText) => {
+        await updateEntityNextStep(this.app, e.notePath!, newText);
+        new Notice(`Updated Next Step for ${e.name}`);
+        this.render();
+      }).open();
+    });
+
+    const nsBody = nextStepCard.createDiv({ cls: 'cockpit-shelf-body' });
+    if (shelves.nextStep) {
+      nsBody.createEl('div', { text: shelves.nextStep, cls: 'cockpit-shelf-text' });
+    } else {
+      nsBody.createEl('div', {
+        text: 'No authoritative next step committed yet. Click "Ask Chief of Staff" or "Edit" to define one.',
+        cls: 'rolodex-muted',
+      });
+    }
+
+    // 2. Canonical Docs & Strategy Artifacts
+    if (shelves.docs.length > 0) {
+      const docsCard = shelfGrid.createDiv({ cls: 'cockpit-shelf-card is-docs' });
+      const docHead = docsCard.createDiv({ cls: 'cockpit-shelf-head' });
+      docHead.createSpan({ text: `📚 Canonical Docs (${shelves.docs.length})`, cls: 'cockpit-shelf-title' });
+
+      const docsList = docsCard.createDiv({ cls: 'cockpit-shelf-docs-list' });
+      for (const d of shelves.docs) {
+        const item = docsList.createDiv({ cls: 'cockpit-shelf-doc-item' });
+        const link = item.createEl('a', {
+          text: `📄 ${d.title}`,
+          cls: 'cockpit-doc-link',
+        });
+        link.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          if (d.url.startsWith('http://') || d.url.startsWith('https://')) {
+            window.open(d.url, '_blank');
+          } else {
+            void this.app.workspace.openLinkText(d.url, '', false);
+          }
+        });
+        if (d.tldr) {
+          item.createSpan({ text: ` — ${d.tldr}`, cls: 'rolodex-muted' });
+        }
+      }
+    }
+  }
+
   private async loadCommercialAndSupportPulse(
     cockpitGrid: HTMLElement,
     intelCol: HTMLElement,
     e: EntityRecord,
+    gen: number,
   ) {
     if (e.type.toLowerCase() !== 'customer') {
       intelCol.remove();
@@ -976,6 +1138,8 @@ export class RolodexView extends ItemView {
       parseAccountSupportCases(this.app, e.name),
       parseAccountWorkloads(this.app, e.name),
     ]);
+
+    if (this.renderGen !== gen) return;
 
     const openCases = casesData.openCases;
     const resolvedCases = casesData.resolvedCases;
@@ -1672,17 +1836,13 @@ export class RolodexView extends ItemView {
       const cb = li.createEl('input', { type: 'checkbox' });
       cb.addEventListener('change', async () => {
         if (cb.checked) {
-          await applyTaskUpdates(this.app, [
-            {
-              path: t.path,
-              line: t.line,
-              currentText: t.text,
-              newStatus: 'done',
-            },
-          ]);
-          new Notice('Task marked done!');
-          await this.plugin.rescan();
-          this.render();
+          const ok = await this.plugin.completeTask(t);
+          if (ok) {
+            new Notice('Task marked done!');
+            this.render();
+          } else {
+            cb.checked = false;
+          }
         }
       });
 
@@ -1969,6 +2129,157 @@ export class VectorFixModal extends Modal {
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
+  }
+}
+
+export class EditNextStepModal extends Modal {
+  private entityName: string;
+  private currentNextStep: string;
+  private onSave: (newNextStep: string) => Promise<void>;
+
+  constructor(app: App, entityName: string, currentNextStep: string, onSave: (newNextStep: string) => Promise<void>) {
+    super(app);
+    this.entityName = entityName;
+    this.currentNextStep = currentNextStep;
+    this.onSave = onSave;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl('h3', { text: `📌 Edit Authoritative Next Step: ${this.entityName}` });
+
+    contentEl.createEl('p', {
+      text: 'Update the single authoritative next step committed to this account note.',
+      cls: 'rolodex-muted',
+    });
+
+    const ta = contentEl.createEl('textarea', {
+      attr: { rows: '5', style: 'width: 100%; margin-bottom: 12px; font-size: 13px;' },
+    });
+    ta.value = this.currentNextStep;
+
+    const row = contentEl.createDiv({ cls: 'rolodex-row' });
+    const saveBtn = row.createEl('button', {
+      text: '💾 Save Next Step',
+      cls: 'rolodex-chip is-cta',
+    });
+    const cancelBtn = row.createEl('button', {
+      text: 'Cancel',
+      cls: 'rolodex-chip',
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const val = ta.value.trim();
+      if (!val) return;
+      saveBtn.disabled = true;
+      saveBtn.setText('⏳ Saving…');
+      await this.onSave(val);
+      this.close();
+    });
+
+    cancelBtn.addEventListener('click', () => this.close());
+    setTimeout(() => ta.focus(), 50);
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
+export class QuickCaptureModal extends Modal {
+  private defaultEntityTag: string;
+  private onCapture: (text: string, priority?: string) => Promise<void>;
+
+  constructor(app: App, defaultEntityTag: string, onCapture: (text: string, priority?: string) => Promise<void>) {
+    super(app);
+    this.defaultEntityTag = defaultEntityTag;
+    this.onCapture = onCapture;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl('h3', { text: "📥 Quick Capture to Today's Inbox" });
+
+    let priority = '';
+    const input = contentEl.createEl('input', {
+      type: 'text',
+      cls: 'rolodex-action-input',
+      placeholder: this.defaultEntityTag
+        ? `Task description (will auto-tag #${this.defaultEntityTag})…`
+        : 'Task description…',
+      attr: { style: 'width: 100%; margin-bottom: 12px;' },
+    });
+
+    const priRow = contentEl.createDiv({ cls: 'rolodex-row', attr: { style: 'margin-bottom: 14px;' } });
+    priRow.createSpan({ text: 'Priority: ', cls: 'rolodex-muted', attr: { style: 'margin-right: 8px;' } });
+    const priButtons = [
+      { label: 'Normal', val: '' },
+      { label: '🔺 High', val: '🔺' },
+      { label: '⏫ Medium', val: '⏫' },
+      { label: '🔼 Low', val: '🔼' },
+    ];
+    for (const p of priButtons) {
+      const b = priRow.createEl('button', {
+        text: p.label,
+        cls: p.val === priority ? 'rolodex-chip is-on' : 'rolodex-chip',
+      });
+      b.addEventListener('click', () => {
+        priority = p.val;
+        priRow.querySelectorAll('button').forEach(btn => btn.removeClass('is-on'));
+        b.addClass('is-on');
+      });
+    }
+
+    const bRow = contentEl.createDiv({ cls: 'rolodex-row' });
+    const submitBtn = bRow.createEl('button', { text: '📥 Add to Inbox', cls: 'rolodex-chip is-cta' });
+    const cancelBtn = bRow.createEl('button', { text: 'Cancel', cls: 'rolodex-chip' });
+
+    const submit = async () => {
+      const val = input.value.trim();
+      if (!val) return;
+      submitBtn.disabled = true;
+      submitBtn.setText('⏳ Adding…');
+      const tagPart = this.defaultEntityTag && !val.includes('#') ? ` #${this.defaultEntityTag}` : '';
+      await this.onCapture(`${val}${tagPart}`, priority);
+      this.close();
+    };
+
+    submitBtn.addEventListener('click', submit);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') void submit();
+    });
+    cancelBtn.addEventListener('click', () => this.close());
+    setTimeout(() => input.focus(), 50);
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
+export class EntitySuggestModal extends FuzzySuggestModal<EntityRecord> {
+  private entities: EntityRecord[];
+  private onSelect: (entity: EntityRecord) => void;
+
+  constructor(app: App, entities: EntityRecord[], onSelect: (entity: EntityRecord) => void) {
+    super(app);
+    this.entities = entities;
+    this.onSelect = onSelect;
+    this.setPlaceholder('Type to search accounts or projects (e.g. Amgen, FoldRun)…');
+  }
+
+  getItems(): EntityRecord[] {
+    return this.entities;
+  }
+
+  getItemText(item: EntityRecord): string {
+    return `${item.name} (${item.type})`;
+  }
+
+  onChooseItem(item: EntityRecord): void {
+    this.onSelect(item);
   }
 }
 
