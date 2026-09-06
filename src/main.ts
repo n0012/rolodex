@@ -4,7 +4,7 @@ import {
 import { buildIndex } from './scanner';
 import { todayIso } from './parse';
 import { ensurePromptFiles } from './ai';
-import { RolodexView, VIEW_TYPE_ROLODEX } from './view';
+import { RolodexView, VIEW_TYPE_COCKPIT, VIEW_TYPE_ROLODEX } from './view';
 import { DEFAULT_PROMPT, DEFAULT_SETTINGS } from './types';
 import type { EntityTask, RolodexIndex, RolodexSettings } from './types';
 
@@ -21,6 +21,7 @@ export default class RolodexPlugin extends Plugin {
     await this.loadSettings();
     await ensurePromptFiles(this.app, this.manifest.id);
 
+    this.registerView(VIEW_TYPE_COCKPIT, leaf => new RolodexView(leaf, this));
     this.registerView(VIEW_TYPE_ROLODEX, leaf => new RolodexView(leaf, this));
     this.addSettingTab(new RolodexSettingTab(this.app, this));
     this.addRibbonIcon('layout-dashboard', 'Cockpit', () => void this.openView());
@@ -94,18 +95,20 @@ export default class RolodexPlugin extends Plugin {
   // ── View ─────────────────────────────────────────────────────
 
   private view(): RolodexView | null {
-    const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_ROLODEX)[0];
+    const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_COCKPIT)[0]
+      || this.app.workspace.getLeavesOfType(VIEW_TYPE_ROLODEX)[0];
     return leaf?.view instanceof RolodexView ? leaf.view : null;
   }
 
   async openView() {
-    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_ROLODEX)[0];
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_COCKPIT)[0]
+      || this.app.workspace.getLeavesOfType(VIEW_TYPE_ROLODEX)[0];
     if (existing) { await this.app.workspace.revealLeaf(existing); return; }
     // Right sidebar on desktop; on phones getRightLeaf returns the single
     // mobile drawer, which is the correct home there too.
     const leaf: WorkspaceLeaf | null = this.app.workspace.getRightLeaf(false);
     if (!leaf) return;
-    await leaf.setViewState({ type: VIEW_TYPE_ROLODEX, active: true });
+    await leaf.setViewState({ type: VIEW_TYPE_COCKPIT, active: true });
     await this.app.workspace.revealLeaf(leaf);
   }
 
@@ -250,7 +253,7 @@ class RolodexSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName('AI briefings & 2x2 Reports').setHeading();
     containerEl.createEl('p', {
       cls: 'rolodex-muted',
-      text: 'Optional. Without a key everything still works — use "Copy context" to paste the assembled notes into any assistant. Prompt templates are stored as editable markdown files in your vault at .obsidian/plugins/rolodex/prompts/ (customer-2x2.md, project-2x2.md, weekly-2x2.md, monthly-2x2.md, briefing.md). You can customize them directly in Obsidian.',
+      text: `Optional. Without a key everything still works — use "Copy context" to paste the assembled notes into any assistant. Prompt templates are stored as editable markdown files in your vault at .obsidian/plugins/${this.plugin.manifest.id}/prompts/ (customer-2x2.md, project-2x2.md, weekly-2x2.md, monthly-2x2.md, briefing.md). You can customize them directly in Obsidian.`,
     });
 
     let keyInput: HTMLInputElement | null = null;
@@ -284,7 +287,7 @@ class RolodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Default Briefing Prompt')
-      .setDesc('Fallback prompt for executive briefs (also stored in .obsidian/plugins/rolodex/prompts/briefing.md).')
+      .setDesc(`Fallback prompt for executive briefs (also stored in .obsidian/plugins/${this.plugin.manifest.id}/prompts/briefing.md).`)
       .addTextArea(t => {
         t.inputEl.rows = 6;
         t.setValue(this.plugin.settings.defaultPrompt)
@@ -301,10 +304,10 @@ class RolodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Prompt Templates on Disk')
-      .setDesc('Ensure all 5 prompt files (customer-2x2, project-2x2, weekly-2x2, monthly-2x2, briefing) exist in .obsidian/plugins/rolodex/prompts/.')
+      .setDesc(`Ensure all 5 prompt files (customer-2x2, project-2x2, weekly-2x2, monthly-2x2, briefing) exist in .obsidian/plugins/${this.plugin.manifest.id}/prompts/.`)
       .addButton(b => b.setButtonText('Verify / Restore Prompts').onClick(async () => {
         await ensurePromptFiles(this.app, this.plugin.manifest.id);
-        new Notice('Verified prompt files in .obsidian/plugins/rolodex/prompts/');
+        new Notice(`Verified prompt files in .obsidian/plugins/${this.plugin.manifest.id}/prompts/`);
       }));
   }
 }

@@ -14,14 +14,14 @@ import type { Window } from './select';
 import type { TaskUpdateProposal } from './actions';
 import { parseAccountSupportCases, parseAccountWorkloads } from './reporting';
 
-export function getPromptsDir(app: App, pluginId = 'rolodex'): string {
+export function getPromptsDir(app: App, pluginId = 'cockpit'): string {
   return `${app.vault.configDir}/plugins/${pluginId}/prompts`;
 }
 
 /**
  * Ensures that the prompts directory and default prompt markdown files exist on disk.
  */
-export async function ensurePromptFiles(app: App, pluginId = 'rolodex'): Promise<void> {
+export async function ensurePromptFiles(app: App, pluginId = 'cockpit'): Promise<void> {
   const dir = getPromptsDir(app, pluginId);
   const adapter = app.vault.adapter;
   if (!(await adapter.exists(dir))) {
@@ -42,15 +42,19 @@ export async function loadPrompt(
   app: App,
   reportType: ReportType,
   variables: Record<string, string> = {},
-  pluginId = 'rolodex',
+  pluginId = 'cockpit',
 ): Promise<string> {
   const def = PROMPT_DEFINITIONS[reportType];
   let text = def ? def.defaultText : DEFAULT_PROMPT;
   const p = `${getPromptsDir(app, pluginId)}/${def?.filename || 'briefing.md'}`;
+  const legacyP = `${getPromptsDir(app, 'rolodex')}/${def?.filename || 'briefing.md'}`;
 
   try {
     if (await app.vault.adapter.exists(p)) {
       const diskText = await app.vault.adapter.read(p);
+      if (diskText.trim()) text = diskText;
+    } else if (await app.vault.adapter.exists(legacyP)) {
+      const diskText = await app.vault.adapter.read(legacyP);
       if (diskText.trim()) text = diskText;
     }
   } catch (err) {

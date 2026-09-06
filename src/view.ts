@@ -50,6 +50,7 @@ import type {
 import type RolodexPlugin from './main';
 import { renderEcosystemNetwork } from './graph';
 
+export const VIEW_TYPE_COCKPIT = 'cockpit-view';
 export const VIEW_TYPE_ROLODEX = 'rolodex-view';
 
 const PRESETS: Array<[string, number]> = [
@@ -86,7 +87,7 @@ export class RolodexView extends ItemView {
   }
 
   getViewType() {
-    return VIEW_TYPE_ROLODEX;
+    return VIEW_TYPE_COCKPIT;
   }
   getDisplayText() {
     return 'Cockpit: Executive Chief of Staff';

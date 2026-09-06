@@ -1,10 +1,10 @@
 {
-  "id": "rolodex",
+  "id": "cockpit",
   "name": "Cockpit",
   "version": "1.5.0",
   "minAppVersion": "1.4.0",
   "description": "Executive Cockpit & Chief of Staff for Google Cloud Customer Engineers: Ecosystem graph, support health, Vector CRM telemetry, and proactive AI interventions.",
   "author": "n0012",
-  "authorUrl": "https://github.com/n0012/rolodex",
+  "authorUrl": "https://github.com/n0012/cockpit",
   "isDesktopOnly": false
 }
