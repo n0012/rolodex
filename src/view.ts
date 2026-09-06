@@ -125,7 +125,7 @@ export class RolodexView extends ItemView {
     const bar = root.createDiv({ cls: 'rolodex-bar' });
 
     const title = bar.createDiv({ cls: 'rolodex-title' });
-    title.createSpan({ text: '🗂 Rolodex: Executive Cockpit' });
+    title.createSpan({ text: '🎛️ Cockpit: Executive Command' });
     const idx = this.plugin.index;
     if (idx) {
       title.createEl('small', {
@@ -140,7 +140,7 @@ export class RolodexView extends ItemView {
       .setTooltip('Rescan the vault')
       .onClick(async () => {
         await this.plugin.rescan();
-        new Notice('Rolodex rescanned');
+        new Notice('Cockpit rescanned');
         this.render();
       });
 
@@ -1308,7 +1308,7 @@ export class RolodexView extends ItemView {
     if (!e) return;
 
     if (!this.plugin.settings.geminiApiKey) {
-      new Notice('Add a Gemini API key in Rolodex settings first');
+      new Notice('Add a Gemini API key in Cockpit settings first');
       return;
     }
 
@@ -1344,7 +1344,7 @@ export class RolodexView extends ItemView {
 
   private async triggerEntityTwoByTwo(e: EntityRecord) {
     if (!this.plugin.settings.geminiApiKey) {
-      new Notice('Add a Gemini API key in Rolodex settings first');
+      new Notice('Add a Gemini API key in Cockpit settings first');
       return;
     }
 
@@ -1398,7 +1398,7 @@ export class RolodexView extends ItemView {
 
   private async triggerEntityRiskMatrix(e: EntityRecord) {
     if (!this.plugin.settings.geminiApiKey) {
-      new Notice('Add a Gemini API key in Rolodex settings first');
+      new Notice('Add a Gemini API key in Cockpit settings first');
       return;
     }
 
@@ -1454,7 +1454,7 @@ export class RolodexView extends ItemView {
     if (!idx) return;
 
     if (!this.plugin.settings.geminiApiKey) {
-      new Notice('Add a Gemini API key in Rolodex settings first');
+      new Notice('Add a Gemini API key in Cockpit settings first');
       return;
     }
 

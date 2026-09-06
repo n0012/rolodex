@@ -122,7 +122,7 @@ export default class RolodexPlugin extends Plugin {
   async completeTask(task: EntityTask): Promise<boolean> {
     const file = this.app.vault.getAbstractFileByPath(task.path);
     if (!(file instanceof TFile)) {
-      new Notice(`Rolodex: ${task.path} is gone — rescan`);
+      new Notice(`Cockpit: ${task.path} is gone — rescan`);
       return false;
     }
     try {
@@ -136,7 +136,7 @@ export default class RolodexPlugin extends Plugin {
         return lines.join('\n');
       });
     } catch {
-      new Notice('Rolodex: that line changed since the last scan — rescanning');
+      new Notice('Cockpit: that line changed since the last scan — rescanning');
       void this.rescan().then(() => this.view()?.refresh());
       return false;
     }
@@ -159,7 +159,7 @@ class RolodexSettingTab extends PluginSettingTab {
     const banner = containerEl.createDiv({ cls: 'rolodex-banner' });
     banner.setText(idx
       ? `Indexed ${idx.entities.size} entities across ${idx.scannedFiles} notes.`
-      : 'Not scanned yet — open Rolodex to build the index.');
+      : 'Not scanned yet — open Cockpit to build the index.');
     if (idx) {
       const types = [...idx.typesSeen.entries()].sort((a, b) => b[1] - a[1])
         .map(([t, n]) => `${t} ${n}`).join(' · ');
@@ -221,7 +221,7 @@ class RolodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Entity note folders')
-      .setDesc('Where an entity\'s own page lives — Customers/AcmeCorp.md, Projects/Phoenix.md. Rolodex links to it from the entity header.')
+      .setDesc('Where an entity\'s own page lives — Customers/AcmeCorp.md, Projects/Phoenix.md. Cockpit links to it from the entity header.')
       .addText(t => t
         .setValue(this.plugin.settings.entityNoteFolders.join(', '))
         .onChange(async v => {
@@ -244,7 +244,7 @@ class RolodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Rescan now')
-      .setDesc('Rolodex also rescans automatically a few seconds after the vault changes.')
+      .setDesc('Cockpit also rescans automatically a few seconds after the vault changes.')
       .addButton(b => b.setButtonText('Rescan').onClick(async () => {
         await this.plugin.rescan();
         this.display();
